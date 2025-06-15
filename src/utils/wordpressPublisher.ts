@@ -1,4 +1,7 @@
 import { WordPressCredentials, HomeyListingData, PublishResponse } from '@/types/wordpress';
+import { uploadImages, assignImagesToListing } from './imageUploader';
+import { createHomeyMetadata } from './homeyMetadata';
+import { translateListingData } from './translator';
 
 export interface TestConnectionResponse {
   success: boolean;
@@ -16,11 +19,9 @@ export const testWordPressConnection = async (
     console.log('Sitio:', credentials.siteUrl);
     console.log('Usuario:', credentials.username);
 
-    // Normalizar URL del sitio
     const siteUrl = credentials.siteUrl.replace(/\/+$/, '');
     const apiUrl = `${siteUrl}/wp-json/wp/v2`;
 
-    // Crear autenticación básica
     const auth = btoa(`${credentials.username}:${credentials.password}`);
     const headers = {
       'Authorization': `Basic ${auth}`,
@@ -29,7 +30,6 @@ export const testWordPressConnection = async (
 
     console.log('📡 Conectando con WordPress API...');
     
-    // Hacer llamada real a la API de WordPress para verificar conexión
     const response = await fetch(`${apiUrl}/users/me`, { 
       method: 'GET',
       headers 
@@ -48,10 +48,8 @@ export const testWordPressConnection = async (
     const userData = await response.json();
     console.log('✅ Conexión con WordPress establecida. Usuario:', userData.name);
 
-    // Verificar si el plugin Homey está instalado de manera más exhaustiva
     console.log('🔍 Verificando plugin Homey...');
     
-    // 1. Verificar tipos de post personalizados
     const typesResponse = await fetch(`${apiUrl}/types`, { headers });
     let homeyInstalled = false;
     let homeyEndpoints: string[] = [];
@@ -60,7 +58,6 @@ export const testWordPressConnection = async (
       const types = await typesResponse.json();
       console.log('📋 Tipos de post disponibles:', Object.keys(types));
       
-      // Buscar tipos de post relacionados con Homey
       const homeyTypes = Object.keys(types).filter(type => 
         ['property', 'listing', 'fave_property', 'homey_listing'].includes(type)
       );
@@ -72,7 +69,6 @@ export const testWordPressConnection = async (
       }
     }
 
-    // 2. Verificar endpoints específicos de Homey
     const homeyTestEndpoints = [
       'property',
       'listings', 
@@ -102,24 +98,6 @@ export const testWordPressConnection = async (
       }
     }
 
-    // 3. Verificar plugins activos mediante REST API
-    try {
-      const pluginsResponse = await fetch(`${siteUrl}/wp-json/wp/v2/plugins`, { headers });
-      if (pluginsResponse.ok) {
-        const plugins = await pluginsResponse.json();
-        const homeyPlugin = plugins.find((plugin: any) => 
-          plugin.name?.toLowerCase().includes('homey') || 
-          plugin.description?.toLowerCase().includes('homey')
-        );
-        if (homeyPlugin) {
-          console.log('✅ Plugin Homey detectado en lista de plugins:', homeyPlugin.name);
-          homeyInstalled = true;
-        }
-      }
-    } catch (error) {
-      console.log('⚠️ No se pudo verificar plugins activos:', error);
-    }
-
     console.log(`${homeyInstalled ? '✅' : '⚠️'} Plugin Homey: ${homeyInstalled ? 'Detectado' : 'No detectado'}`);
     console.log('📋 Endpoints de Homey disponibles:', homeyEndpoints);
 
@@ -146,42 +124,41 @@ export const publishToWordPress = async (
 ): Promise<PublishResponse> => {
   try {
     console.log('📝 Iniciando publicación en WordPress como Homey Listing...');
-    console.log('Sitio:', credentials.siteUrl);
-    console.log('Usuario:', credentials.username);
-    console.log('Datos del listing:', listingData);
+    
+    // 1. Translate content to English if needed
+    const translatedData = await translateListingData(listingData);
+    console.log('🌐 Datos traducidos:', translatedData.title !== listingData.title ? 'Sí' : 'No');
 
-    // Normalizar URL del sitio
     const siteUrl = credentials.siteUrl.replace(/\/+$/, '');
     const apiUrl = `${siteUrl}/wp-json/wp/v2`;
 
-    // Crear autenticación básica
     const auth = btoa(`${credentials.username}:${credentials.password}`);
     const headers = {
       'Authorization': `Basic ${auth}`,
       'Content-Type': 'application/json'
     };
 
-    // 1. Verificar qué endpoints de Homey están disponibles
+    // 2. Test connection and get available endpoints
     console.log('🔍 Verificando endpoints de Homey disponibles...');
     const connectionTest = await testWordPressConnection(credentials);
     const availableEndpoints = connectionTest.homeyEndpoints || [];
     
-    // 2. Subir imágenes primero
-    console.log('📸 Subiendo imágenes...');
-    const uploadedImageIds = await uploadImages(siteUrl, auth, listingData.images);
+    // 3. Upload ALL images
+    console.log('📸 Subiendo todas las imágenes...');
+    const uploadedImageIds = await uploadImages(siteUrl, auth, translatedData.images);
+    console.log(`✅ ${uploadedImageIds.length}/${translatedData.images.length} imágenes subidas`);
     
-    // 3. Crear slug para la URL del listing
-    const slug = createListingSlug(listingData.title);
+    // 4. Create listing slug
+    const slug = createListingSlug(translatedData.title);
     
-    // 4. Preparar datos del Homey Listing
-    console.log('🏠 Preparando datos del Homey Listing...');
-    const homeyMetadata = createHomeyMetadata(listingData, uploadedImageIds);
+    // 5. Prepare comprehensive Homey metadata
+    console.log('🏠 Preparando metadatos completos de Homey...');
+    const homeyMetadata = createHomeyMetadata(translatedData, uploadedImageIds);
     
-    // 5. Intentar crear como Homey Listing usando diferentes endpoints
+    // 6. Try to create as Homey Listing
     let createdPost: any = null;
     let usedEndpoint = '';
     
-    // Lista de endpoints a probar en orden de preferencia
     const endpointsToTry = [
       'property',
       'listings',
@@ -190,7 +167,6 @@ export const publishToWordPress = async (
       'properties'
     ].filter(endpoint => availableEndpoints.includes(endpoint));
     
-    // Si no hay endpoints de Homey disponibles, añadir algunos para probar
     if (endpointsToTry.length === 0) {
       endpointsToTry.push('property', 'listings');
     }
@@ -202,9 +178,9 @@ export const publishToWordPress = async (
         console.log(`🔄 Intentando crear Homey Listing en /${endpoint}...`);
         
         const listingPostData = {
-          title: listingData.title,
-          content: formatListingContent(listingData),
-          status: listingData.status,
+          title: translatedData.title,
+          content: formatListingContent(translatedData),
+          status: translatedData.status,
           slug: slug,
           featured_media: uploadedImageIds[0] || 0,
           meta: homeyMetadata
@@ -219,7 +195,7 @@ export const publishToWordPress = async (
         if (response.ok) {
           createdPost = await response.json();
           usedEndpoint = endpoint;
-          console.log(`✅ Homey Listing creado exitosamente en /${endpoint}:`, createdPost);
+          console.log(`✅ Homey Listing creado exitosamente en /${endpoint}:`, createdPost.id);
           break;
         } else {
           const errorText = await response.text();
@@ -231,17 +207,16 @@ export const publishToWordPress = async (
       }
     }
     
-    // 6. Si no se pudo crear como Homey Listing, crear como post estándar con metadatos
+    // 7. Fallback to standard post if needed
     if (!createdPost) {
       console.log('🔄 Creando como post estándar con metadatos de Homey...');
       
       const standardPostData = {
-        title: listingData.title,
-        content: formatListingContent(listingData),
-        status: listingData.status,
+        title: translatedData.title,
+        content: formatListingContent(translatedData),
+        status: translatedData.status,
         slug: slug,
         featured_media: uploadedImageIds[0] || 0,
-        categories: [], // Agregar categoría de propiedades si existe
         meta: homeyMetadata
       };
       
@@ -259,18 +234,18 @@ export const publishToWordPress = async (
       
       createdPost = await response.json();
       usedEndpoint = 'posts';
-      console.log('✅ Post estándar creado con metadatos de Homey:', createdPost);
-      
-      // Intentar asignar metadatos individualmente si no se guardaron
-      await assignMetadataIndividually(siteUrl, auth, createdPost.id, homeyMetadata);
+      console.log('✅ Post estándar creado con metadatos de Homey:', createdPost.id);
     }
 
-    // 7. Asignar amenidades como taxonomías de Homey
-    if (listingData.amenities.length > 0) {
-      await assignHomeyAmenities(siteUrl, auth, createdPost.id, listingData.amenities, usedEndpoint);
+    // 8. Assign images to listing gallery
+    await assignImagesToListing(siteUrl, auth, createdPost.id, uploadedImageIds, usedEndpoint);
+
+    // 9. Assign amenities
+    if (translatedData.amenities.length > 0) {
+      await assignHomeyAmenities(siteUrl, auth, createdPost.id, translatedData.amenities, usedEndpoint);
     }
 
-    // 8. Crear URL del listing
+    // 10. Generate correct listing URL
     let listingUrl: string;
     if (usedEndpoint === 'posts') {
       listingUrl = `${siteUrl}/${slug}/`;
@@ -283,7 +258,7 @@ export const publishToWordPress = async (
     return {
       success: true,
       postId: createdPost.id,
-      message: `${usedEndpoint === 'posts' ? 'Post con metadatos de Homey' : 'Homey Listing'} publicado exitosamente usando endpoint /${usedEndpoint}`,
+      message: `${usedEndpoint === 'posts' ? 'Post con metadatos de Homey' : 'Homey Listing'} publicado exitosamente con ${uploadedImageIds.length} imágenes en galería`,
       url: listingUrl
     };
 
@@ -401,10 +376,10 @@ const assignMetadataIndividually = async (
 const createListingSlug = (title: string): string => {
   return title
     .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '') // Remover caracteres especiales
-    .replace(/\s+/g, '-') // Espacios a guiones
-    .replace(/-+/g, '-') // Múltiples guiones a uno
-    .replace(/^-|-$/g, ''); // Remover guiones al inicio/final
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
 };
 
 const extractCityFromLocation = (location: string): string => {
@@ -428,7 +403,6 @@ const assignHomeyAmenities = async (
   try {
     console.log('🏷️ Asignando amenidades...');
     
-    // Intentar diferentes endpoints para amenidades
     const amenityEndpoints = [
       'property_feature',
       'listing_feature', 
@@ -438,7 +412,6 @@ const assignHomeyAmenities = async (
     
     let taxonomyEndpoint = '';
     
-    // Encontrar el endpoint correcto para amenidades
     for (const endpoint of amenityEndpoints) {
       try {
         const testResponse = await fetch(`${siteUrl}/wp-json/wp/v2/${endpoint}`, {
@@ -460,7 +433,6 @@ const assignHomeyAmenities = async (
       return;
     }
     
-    // Obtener taxonomías de amenidades existentes
     const taxonomiesUrl = `${siteUrl}/wp-json/wp/v2/${taxonomyEndpoint}`;
     const response = await fetch(taxonomiesUrl, {
       headers: { 'Authorization': `Basic ${auth}` }
@@ -471,7 +443,6 @@ const assignHomeyAmenities = async (
       const amenityIds: number[] = [];
 
       for (const amenity of amenities) {
-        // Buscar si la amenidad ya existe
         const existingFeature = existingFeatures.find((f: any) => 
           f.name.toLowerCase() === amenity.toLowerCase()
         );
@@ -480,7 +451,6 @@ const assignHomeyAmenities = async (
           amenityIds.push(existingFeature.id);
           console.log(`✅ Amenidad existente encontrada: ${amenity} (ID: ${existingFeature.id})`);
         } else {
-          // Crear nueva amenidad si no existe
           try {
             const createResponse = await fetch(taxonomiesUrl, {
               method: 'POST',
@@ -505,7 +475,6 @@ const assignHomeyAmenities = async (
         }
       }
 
-      // Asignar amenidades al post
       if (amenityIds.length > 0) {
         const assignUrl = usedEndpoint === 'posts' ? 
           `${siteUrl}/wp-json/wp/v2/posts/${postId}` : 

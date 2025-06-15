@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -67,7 +68,6 @@ export const WordPressPublisher: React.FC<WordPressPublisherProps> = ({ data }) 
 
   const handleCredentialChange = (field: keyof WordPressCredentials, value: string) => {
     setCredentials(prev => ({ ...prev, [field]: value }));
-    // Reset connection status when credentials change
     setIsConnected(null);
     setHomeyEndpoints([]);
   };
@@ -130,7 +130,7 @@ export const WordPressPublisher: React.FC<WordPressPublisherProps> = ({ data }) 
       if (result.success) {
         toast({
           title: "✅ Publicación exitosa",
-          description: `Listing publicado con ID: ${result.postId}`,
+          description: `Homey Listing publicado con ID: ${result.postId}`,
         });
       } else {
         toast({
@@ -238,7 +238,6 @@ export const WordPressPublisher: React.FC<WordPressPublisherProps> = ({ data }) 
             </p>
           </div>
 
-          {/* Test Connection Button */}
           <Button
             onClick={handleTestConnection}
             disabled={!credentials.siteUrl || !credentials.username || !credentials.password || isTesting}
@@ -333,15 +332,18 @@ export const WordPressPublisher: React.FC<WordPressPublisherProps> = ({ data }) 
               value={listingData.description}
               onChange={(e) => handleListingDataChange('description', e.target.value)}
             />
+            <p className="text-xs text-gray-500 mt-1">
+              Se traducirá automáticamente al inglés si es necesario
+            </p>
           </div>
           
           <div>
-            <Label>Imágenes a publicar</Label>
+            <Label>Imágenes a publicar (TODAS las imágenes)</Label>
             <div className="text-sm text-gray-600 mt-1">
-              Se publicarán {listingData.images.length} imágenes automáticamente en la galería de Homey
+              Se publicarán TODAS las {listingData.images.length} imágenes en la galería de Homey
             </div>
-            <div className="grid grid-cols-4 gap-2 mt-2">
-              {listingData.images.slice(0, 8).map((image, index) => (
+            <div className="grid grid-cols-4 gap-2 mt-2 max-h-32 overflow-y-auto">
+              {listingData.images.map((image, index) => (
                 <img
                   key={index}
                   src={image}
@@ -350,11 +352,6 @@ export const WordPressPublisher: React.FC<WordPressPublisherProps> = ({ data }) 
                 />
               ))}
             </div>
-            {listingData.images.length > 8 && (
-              <p className="text-xs text-gray-500 mt-1">
-                +{listingData.images.length - 8} imágenes más
-              </p>
-            )}
           </div>
           
           <div>
@@ -382,12 +379,12 @@ export const WordPressPublisher: React.FC<WordPressPublisherProps> = ({ data }) 
           {isPublishing ? (
             <>
               <Upload className="h-4 w-4 mr-2 animate-spin" />
-              Publicando Homey Listing...
+              Publicando Homey Listing con {listingData.images.length} imágenes...
             </>
           ) : (
             <>
               <Upload className="h-4 w-4 mr-2" />
-              Publicar como Homey Listing
+              Publicar como Homey Listing ({listingData.images.length} imágenes)
             </>
           )}
         </Button>
@@ -400,12 +397,12 @@ export const WordPressPublisher: React.FC<WordPressPublisherProps> = ({ data }) 
               : 'bg-red-50 border-red-200 text-red-800'
           }`}>
             <h5 className="font-medium mb-2">
-              {publishResult.success ? '✅ Listing publicado exitosamente' : '❌ Error en la publicación'}
+              {publishResult.success ? '✅ Homey Listing publicado exitosamente' : '❌ Error en la publicación'}
             </h5>
             <p className="text-sm">{publishResult.message}</p>
             {publishResult.postId && (
               <p className="text-sm mt-1 font-mono bg-white px-2 py-1 rounded">
-                <strong>ID del Listing:</strong> {publishResult.postId}
+                <strong>ID del Homey Listing:</strong> {publishResult.postId}
               </p>
             )}
             {publishResult.url && (
@@ -417,7 +414,7 @@ export const WordPressPublisher: React.FC<WordPressPublisherProps> = ({ data }) 
                   className="inline-flex items-center space-x-1 text-blue-600 hover:text-blue-800 underline"
                 >
                   <ExternalLink className="h-4 w-4" />
-                  <span>Ver Listing</span>
+                  <span>Ver Homey Listing</span>
                 </a>
               </div>
             )}
