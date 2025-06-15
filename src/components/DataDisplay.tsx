@@ -23,6 +23,12 @@ export const DataDisplay: React.FC<DataDisplayProps> = ({ data }) => {
             <div>
               <h3 className="font-semibold text-lg text-gray-900">{data.title}</h3>
               <p className="text-gray-600 mt-2">{data.description}</p>
+              {data.aboutSpace && (
+                <div className="mt-4">
+                  <h4 className="font-medium text-gray-900 mb-2">About this space:</h4>
+                  <p className="text-gray-600 text-sm">{data.aboutSpace}</p>
+                </div>
+              )}
             </div>
             
             <div className="grid grid-cols-2 gap-4 text-sm">
@@ -50,7 +56,7 @@ export const DataDisplay: React.FC<DataDisplayProps> = ({ data }) => {
         {/* Reviews */}
         <Card>
           <CardHeader>
-            <CardTitle>Reviews</CardTitle>
+            <CardTitle>Reviews ({data.reviews.recent.length} shown)</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center space-x-4">
@@ -62,7 +68,7 @@ export const DataDisplay: React.FC<DataDisplayProps> = ({ data }) => {
               </div>
             </div>
             
-            <div className="space-y-3">
+            <div className="space-y-3 max-h-64 overflow-y-auto">
               {data.reviews.recent.map((review, index) => (
                 <div key={index} className="border-l-2 border-gray-200 pl-3">
                   <div className="flex items-center justify-between">

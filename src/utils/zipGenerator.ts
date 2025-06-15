@@ -2,10 +2,26 @@
 import JSZip from 'jszip';
 import { ScrapingData } from '@/types/scraping';
 
+const generateFileName = (data: ScrapingData): string => {
+  // Extract city and country from location
+  const locationParts = data.location.split(', ');
+  const city = locationParts[0] || 'Unknown';
+  const state = locationParts[1] || '';
+  const country = locationParts[locationParts.length - 1] || 'Unknown';
+  
+  // Clean up strings for filename (remove special characters)
+  const cleanString = (str: string) => str.replace(/[^a-zA-Z0-9]/g, '-');
+  
+  const cleanCity = cleanString(city);
+  const cleanCountry = cleanString(country);
+  
+  return `airbnb-listing-${data.listingId}-${cleanCity}-${cleanCountry}.zip`;
+};
+
 export const generateZipFile = async (data: ScrapingData): Promise<void> => {
   const zip = new JSZip();
 
-  // Create description text file
+  // Create description text file with Spanish "About this space" section
   const descriptionText = `${data.title}
 
 Location: ${data.location}
@@ -14,6 +30,8 @@ Guests: ${data.guests} | Bedrooms: ${data.bedrooms} | Bathrooms: ${data.bathroom
 
 Description:
 ${data.description}
+
+${data.aboutSpace}
 
 Amenities:
 ${data.amenities.map(amenity => `• ${amenity}`).join('\n')}
@@ -27,8 +45,11 @@ Extracted on: ${new Date(data.extractedAt).toLocaleString()}`;
 
   // Add JSON data file
   const jsonData = {
+    listingId: data.listingId,
+    url: data.url,
     title: data.title,
     description: data.description,
+    aboutSpace: data.aboutSpace,
     guests: data.guests,
     bedrooms: data.bedrooms,
     bathrooms: data.bathrooms,
@@ -91,14 +112,14 @@ ${'='.repeat(50)}
     console.log(`Image download complete: ${successCount}/${data.images.length} images successfully downloaded`);
   }
 
-  // Generate and download ZIP file
+  // Generate and download ZIP file with improved filename
   console.log('Generating ZIP file...');
   const zipBlob = await zip.generateAsync({ type: 'blob' });
   const url = URL.createObjectURL(zipBlob);
   
   const link = document.createElement('a');
   link.href = url;
-  link.download = `airbnb-listing-${Date.now()}.zip`;
+  link.download = generateFileName(data);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

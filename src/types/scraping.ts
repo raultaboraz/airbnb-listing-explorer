@@ -12,8 +12,11 @@ export interface ReviewsData {
 }
 
 export interface ScrapingData {
+  listingId: string;
+  url: string;
   title: string;
   description: string;
+  aboutSpace: string;
   guests: number;
   bedrooms: number;
   bathrooms: number;
