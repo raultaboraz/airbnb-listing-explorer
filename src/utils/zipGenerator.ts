@@ -59,31 +59,40 @@ ${'='.repeat(50)}
   const imagesFolder = zip.folder('images');
   
   if (imagesFolder && data.images.length > 0) {
+    console.log(`Starting download of ${data.images.length} images...`);
+    
     const imagePromises = data.images.map(async (imageUrl, index) => {
       try {
+        console.log(`Downloading image ${index + 1}/${data.images.length}: ${imageUrl}`);
         const response = await fetch(imageUrl);
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         const blob = await response.blob();
         
-        // Always save as JPG with proper filename
-        const fileName = `image-${String(index + 1).padStart(2, '0')}.jpg`;
+        // Always save as JPG with proper filename (padded numbers for sorting)
+        const fileName = `image-${String(index + 1).padStart(3, '0')}.jpg`;
         imagesFolder.file(fileName, blob);
         
-        console.log(`Successfully downloaded image ${index + 1}`);
+        console.log(`Successfully downloaded and saved: ${fileName}`);
+        return true;
       } catch (error) {
         console.error(`Failed to download image ${index + 1}:`, error);
         // Add a text file noting the failed download
-        const errorFileName = `image-${String(index + 1).padStart(2, '0')}-failed.txt`;
+        const errorFileName = `image-${String(index + 1).padStart(3, '0')}-failed.txt`;
         imagesFolder.file(errorFileName, `Failed to download: ${imageUrl}\nError: ${error}`);
+        return false;
       }
     });
 
-    await Promise.all(imagePromises);
+    // Wait for all image downloads to complete
+    const results = await Promise.all(imagePromises);
+    const successCount = results.filter(result => result).length;
+    console.log(`Image download complete: ${successCount}/${data.images.length} images successfully downloaded`);
   }
 
   // Generate and download ZIP file
+  console.log('Generating ZIP file...');
   const zipBlob = await zip.generateAsync({ type: 'blob' });
   const url = URL.createObjectURL(zipBlob);
   
@@ -95,4 +104,5 @@ ${'='.repeat(50)}
   document.body.removeChild(link);
   
   URL.revokeObjectURL(url);
+  console.log('ZIP file download initiated');
 };
