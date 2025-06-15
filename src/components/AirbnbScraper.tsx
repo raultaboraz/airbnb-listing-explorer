@@ -1,9 +1,9 @@
-
 import React, { useState } from 'react';
 import { UrlInput } from './UrlInput';
 import { ProgressTracker } from './ProgressTracker';
 import { DataDisplay } from './DataDisplay';
 import { DownloadSection } from './DownloadSection';
+import { WordPressPublisher } from './WordPressPublisher';
 import { ScrapingData } from '@/types/scraping';
 
 export const AirbnbScraper = () => {
@@ -153,6 +153,7 @@ export const AirbnbScraper = () => {
         <>
           <DataDisplay data={extractedData} />
           <DownloadSection data={extractedData} />
+          <WordPressPublisher data={extractedData} />
         </>
       )}
     </div>
