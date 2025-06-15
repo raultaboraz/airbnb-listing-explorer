@@ -125,9 +125,12 @@ export const publishToWordPress = async (
   try {
     console.log('📝 Iniciando publicación en WordPress como Homey Listing...');
     
-    // 1. Translate content to English if needed
+    // 1. Translate content to English and clean price
     const translatedData = await translateListingData(listingData);
-    console.log('🌐 Datos traducidos:', translatedData.title !== listingData.title ? 'Sí' : 'No');
+    console.log('🌐 Datos procesados:');
+    console.log('- Título traducido:', translatedData.title !== listingData.title ? 'Sí' : 'No');
+    console.log('- Precio limpio:', translatedData.price);
+    console.log('- Ubicación:', translatedData.location);
 
     const siteUrl = credentials.siteUrl.replace(/\/+$/, '');
     const apiUrl = `${siteUrl}/wp-json/wp/v2`;
@@ -430,7 +433,7 @@ const formatListingContent = (listingData: HomeyListingData): string => {
     <li><strong>Bathrooms:</strong> ${listingData.bathrooms}</li>
     <li><strong>Guests:</strong> ${listingData.guests}</li>
     <li><strong>Location:</strong> ${listingData.location}</li>
-    <li><strong>Price:</strong> ${listingData.price}</li>
+    <li><strong>Price per night:</strong> $${listingData.price}</li>
   </ul>
   
   <h3>Amenities</h3>

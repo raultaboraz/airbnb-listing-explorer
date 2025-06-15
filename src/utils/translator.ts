@@ -33,19 +33,40 @@ export const detectAndTranslateText = async (text: string): Promise<string> => {
   }
 };
 
+export const extractPriceNumber = (priceText: string): string => {
+  // Extract only numbers from price text like "$450/night" -> "450"
+  const numbers = priceText.replace(/[^\d]/g, '');
+  console.log(`💰 Precio extraído: "${priceText}" -> "${numbers}"`);
+  return numbers || '0';
+};
+
 export const translateListingData = async (listingData: any): Promise<any> => {
   console.log('🌐 Iniciando traducción de datos del listing...');
   
   try {
-    const [translatedTitle, translatedDescription] = await Promise.all([
+    // Ensure location is always included and translated
+    const locationText = listingData.location || 'Location not specified';
+    
+    const [translatedTitle, translatedDescription, translatedLocation] = await Promise.all([
       detectAndTranslateText(listingData.title),
-      detectAndTranslateText(listingData.description)
+      detectAndTranslateText(listingData.description),
+      detectAndTranslateText(locationText)
     ]);
+
+    // Extract clean price number
+    const cleanPrice = extractPriceNumber(listingData.price);
+
+    console.log('✅ Traducción completada:');
+    console.log('- Título:', translatedTitle);
+    console.log('- Precio limpio:', cleanPrice);
+    console.log('- Ubicación:', translatedLocation);
 
     return {
       ...listingData,
       title: translatedTitle,
-      description: translatedDescription
+      description: translatedDescription,
+      location: translatedLocation,
+      price: cleanPrice // Clean price number only
     };
   } catch (error) {
     console.error('❌ Error durante traducción del listing:', error);
