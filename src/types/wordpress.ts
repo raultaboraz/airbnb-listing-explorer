@@ -25,3 +25,10 @@ export interface PublishResponse {
   message: string;
   error?: string;
 }
+
+export interface TestConnectionResponse {
+  success: boolean;
+  message: string;
+  homeyInstalled?: boolean;
+  error?: string;
+}
