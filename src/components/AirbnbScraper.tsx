@@ -50,7 +50,7 @@ export const AirbnbScraper = () => {
       }
     }
 
-    // Generate mock extracted data
+    // Generate mock extracted data with more images
     const mockData: ScrapingData = {
       title: "Beautiful Oceanview Villa in Malibu",
       description: "Stunning 4-bedroom villa with panoramic ocean views, private pool, and direct beach access. Perfect for families and groups looking for a luxury getaway.",
@@ -76,7 +76,15 @@ export const AirbnbScraper = () => {
         "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800",
         "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800",
         "https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=800",
-        "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=800"
+        "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=800",
+        "https://images.unsplash.com/photo-1576013551627-0cc20b96c2a7?w=800",
+        "https://images.unsplash.com/photo-1582268611958-ebfd161ef9cf?w=800",
+        "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=800",
+        "https://images.unsplash.com/photo-1565623833408-d77e39b88af6?w=800",
+        "https://images.unsplash.com/photo-1615874694520-474822394e73?w=800",
+        "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=800",
+        "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=800",
+        "https://images.unsplash.com/photo-1600566753376-12c8ab7fb75b?w=800"
       ],
       extractedAt: new Date().toISOString()
     };
