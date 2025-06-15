@@ -272,74 +272,6 @@ export const publishToWordPress = async (
   }
 };
 
-const createHomeyMetadata = (listingData: HomeyListingData, uploadedImageIds: number[]) => {
-  // Extraer números del precio
-  const priceNumber = listingData.price.replace(/[^\d]/g, '');
-  
-  return {
-    // Campos básicos de Homey
-    'fave_property_price': priceNumber,
-    'fave_property_price_postfix': 'Per Night',
-    'fave_property_bedrooms': listingData.bedrooms.toString(),
-    'fave_property_bathrooms': listingData.bathrooms.toString(),
-    'fave_property_guests': listingData.guests.toString(),
-    'fave_property_address': listingData.location,
-    'fave_property_city': extractCityFromLocation(listingData.location),
-    'fave_property_country': extractCountryFromLocation(listingData.location),
-    'fave_property_type': listingData.propertyType,
-    'fave_property_status': 'for-rent',
-    'fave_property_label': 'featured',
-    
-    // Configuración de imágenes
-    'fave_property_images': uploadedImageIds.join(','),
-    
-    // Configuración de mapa
-    'fave_property_map': '1',
-    'fave_property_map_address': listingData.location,
-    
-    // Estado del listing
-    'fave_featured': '1',
-    'fave_agent_display_option': 'none',
-    
-    // Configuración de reservas
-    'fave_property_min_days': '1',
-    'fave_property_max_days': '365',
-    'fave_property_instant_booking': '0',
-    'fave_property_checkin': '15:00',
-    'fave_property_checkout': '11:00',
-    
-    // Políticas de la propiedad
-    'fave_property_smoking': '0',
-    'fave_property_pets': '0',
-    'fave_property_party': '0',
-    'fave_property_children': '1',
-    
-    // Precios adicionales
-    'fave_property_weekends': priceNumber,
-    'fave_property_weekly_discount': '0',
-    'fave_property_monthly_discount': '0',
-    
-    // Campos opcionales vacíos
-    'fave_property_size': '',
-    'fave_property_size_prefix': 'SqFt',
-    'fave_property_year': '',
-    'fave_property_garage': '0',
-    'fave_property_garage_size': '',
-    'fave_property_agent': '',
-    'fave_property_zip': '',
-    'fave_property_payment_status': '',
-    'fave_property_disclaimer': '',
-    'fave_property_virtual_tour': '',
-    'fave_property_video_url': '',
-    'fave_property_energy_class': '',
-    'fave_property_energy_global_index': '',
-    'fave_property_additional_fees': '',
-    'fave_property_sec_deposit': '',
-    'fave_property_cleaning_fee': '',
-    'fave_property_city_fee': ''
-  };
-};
-
 const assignMetadataIndividually = async (
   siteUrl: string, 
   auth: string, 
@@ -380,17 +312,6 @@ const createListingSlug = (title: string): string => {
     .replace(/\s+/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '');
-};
-
-const extractCityFromLocation = (location: string): string => {
-  // Extraer ciudad de la ubicación (primer elemento antes de coma)
-  return location.split(',')[0].trim();
-};
-
-const extractCountryFromLocation = (location: string): string => {
-  // Extraer país de la ubicación (último elemento después de coma)
-  const parts = location.split(',');
-  return parts[parts.length - 1].trim();
 };
 
 const assignHomeyAmenities = async (
@@ -496,56 +417,6 @@ const assignHomeyAmenities = async (
   } catch (error) {
     console.error('❌ Error asignando amenidades:', error);
   }
-};
-
-const uploadImages = async (siteUrl: string, auth: string, images: string[]): Promise<number[]> => {
-  console.log(`📸 Subiendo ${images.length} imágenes...`);
-  
-  const uploadedIds: number[] = [];
-  const mediaUrl = `${siteUrl}/wp-json/wp/v2/media`;
-  
-  for (let i = 0; i < Math.min(images.length, 10); i++) {
-    try {
-      console.log(`📸 Subiendo imagen ${i + 1}/${images.length}: ${images[i]}`);
-      
-      // Descargar la imagen desde la URL
-      const imageResponse = await fetch(images[i]);
-      if (!imageResponse.ok) {
-        console.error(`❌ Error descargando imagen ${i + 1}`);
-        continue;
-      }
-      
-      const imageBlob = await imageResponse.blob();
-      const fileName = `listing-image-${i + 1}.jpg`;
-      
-      // Crear FormData para la subida
-      const formData = new FormData();
-      formData.append('file', imageBlob, fileName);
-      
-      const uploadResponse = await fetch(mediaUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Basic ${auth}`,
-        },
-        body: formData
-      });
-      
-      if (uploadResponse.ok) {
-        const uploadResult = await uploadResponse.json();
-        uploadedIds.push(uploadResult.id);
-        console.log(`✅ Imagen ${i + 1} subida con ID: ${uploadResult.id}`);
-      } else {
-        const errorText = await uploadResponse.text();
-        console.error(`❌ Error subiendo imagen ${i + 1}:`, errorText);
-      }
-      
-    } catch (error) {
-      console.error(`❌ Error procesando imagen ${i + 1}:`, error);
-    }
-  }
-  
-  console.log(`✅ ${uploadedIds.length} imágenes subidas exitosamente`);
-  return uploadedIds;
 };
 
 const formatListingContent = (listingData: HomeyListingData): string => {
