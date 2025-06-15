@@ -24,6 +24,7 @@ export interface PublishResponse {
   postId?: number;
   message: string;
   error?: string;
+  url?: string;
 }
 
 export interface TestConnectionResponse {

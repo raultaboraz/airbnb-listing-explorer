@@ -81,7 +81,7 @@ export const publishToWordPress = async (
   listingData: HomeyListingData
 ): Promise<PublishResponse> => {
   try {
-    console.log('📝 Iniciando publicación en WordPress...');
+    console.log('📝 Iniciando publicación en WordPress como Homey Listing...');
     console.log('Sitio:', credentials.siteUrl);
     console.log('Usuario:', credentials.username);
     console.log('Datos del listing:', listingData);
@@ -101,32 +101,85 @@ export const publishToWordPress = async (
     console.log('📸 Subiendo imágenes...');
     const uploadedImageIds = await uploadImages(siteUrl, auth, listingData.images);
     
-    // 2. Crear el post del listing
-    console.log('📝 Creando post del listing...');
-    const postData = {
+    // 2. Crear slug para la URL del listing
+    const slug = createListingSlug(listingData.title);
+    
+    // 3. Crear el Homey Listing (Custom Post Type)
+    console.log('🏠 Creando Homey Listing...');
+    const listingPostData = {
       title: listingData.title,
       content: formatListingContent(listingData),
       status: listingData.status,
+      slug: slug,
       featured_media: uploadedImageIds[0] || 0,
+      // Usar el endpoint específico de Homey para listings
+      type: 'property', // Tipo de post personalizado de Homey
       meta: {
-        // Campos específicos de Homey
-        'fave_property_price': listingData.price,
+        // Campos específicos de Homey Listings
+        'fave_property_price': listingData.price.replace(/[^\d]/g, ''), // Solo números
+        'fave_property_price_postfix': 'Per Night',
         'fave_property_bedrooms': listingData.bedrooms.toString(),
         'fave_property_bathrooms': listingData.bathrooms.toString(),
         'fave_property_guests': listingData.guests.toString(),
         'fave_property_address': listingData.location,
-        'fave_property_amenities': listingData.amenities.join(','),
+        'fave_property_city': extractCityFromLocation(listingData.location),
+        'fave_property_country': extractCountryFromLocation(listingData.location),
+        'fave_property_zip': '',
         'fave_property_type': listingData.propertyType,
-        'fave_property_images': uploadedImageIds.join(',')
+        'fave_property_status': 'for-rent',
+        'fave_property_label': 'featured',
+        'fave_property_size': '',
+        'fave_property_size_prefix': 'SqFt',
+        'fave_property_year': '',
+        'fave_property_garage': '0',
+        'fave_property_garage_size': '',
+        'fave_property_agent': '',
+        'fave_property_images': uploadedImageIds.join(','),
+        'fave_property_map': '1',
+        'fave_property_map_address': listingData.location,
+        'fave_featured': '1',
+        'fave_agent_display_option': 'none',
+        'fave_property_payment_status': '',
+        'fave_property_disclaimer': '',
+        'fave_property_virtual_tour': '',
+        'fave_property_video_url': '',
+        'fave_property_energy_class': '',
+        'fave_property_energy_global_index': '',
+        'fave_property_min_days': '1',
+        'fave_property_max_days': '365',
+        'fave_property_instant_booking': '0',
+        'fave_property_checkin': '15:00',
+        'fave_property_checkout': '11:00',
+        'fave_property_smoking': '0',
+        'fave_property_pets': '0',
+        'fave_property_party': '0',
+        'fave_property_children': '1',
+        'fave_property_additional_fees': '',
+        'fave_property_sec_deposit': '',
+        'fave_property_cleaning_fee': '',
+        'fave_property_city_fee': '',
+        'fave_property_weekends': listingData.price.replace(/[^\d]/g, ''),
+        'fave_property_weekly_discount': '0',
+        'fave_property_monthly_discount': '0'
       }
     };
 
-    // Hacer llamada real a WordPress API
-    const response = await fetch(`${apiUrl}/posts`, {
+    // Intentar publicar como Homey Listing primero
+    let response = await fetch(`${apiUrl}/property`, {
       method: 'POST',
       headers,
-      body: JSON.stringify(postData)
+      body: JSON.stringify(listingPostData)
     });
+
+    // Si falla, intentar con el endpoint estándar pero con type property
+    if (!response.ok) {
+      console.log('🔄 Intentando con endpoint alternativo...');
+      response = await fetch(`${apiUrl}/posts`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(listingPostData)
+      });
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -135,14 +188,21 @@ export const publishToWordPress = async (
     }
 
     const result = await response.json();
-    console.log('✅ Post creado exitosamente:', result);
+    console.log('✅ Homey Listing creado exitosamente:', result);
 
-    const postUrl = `${siteUrl}/?p=${result.id}`;
+    // 4. Asignar amenidades como taxonomías de Homey
+    if (listingData.amenities.length > 0) {
+      await assignHomeyAmenities(siteUrl, auth, result.id, listingData.amenities);
+    }
+
+    // 5. Crear URL del listing con formato Homey
+    const listingUrl = `${siteUrl}/listing/${slug}/`;
     
     return {
       success: true,
       postId: result.id,
-      message: `Listing publicado exitosamente. Ver en: ${postUrl}`
+      message: `Homey Listing publicado exitosamente. Ver en: ${listingUrl}`,
+      url: listingUrl
     };
 
   } catch (error) {
@@ -152,6 +212,93 @@ export const publishToWordPress = async (
       message: 'Error durante la publicación en WordPress',
       error: error instanceof Error ? error.message : 'Error desconocido'
     };
+  }
+};
+
+const createListingSlug = (title: string): string => {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '') // Remover caracteres especiales
+    .replace(/\s+/g, '-') // Espacios a guiones
+    .replace(/-+/g, '-') // Múltiples guiones a uno
+    .replace(/^-|-$/g, ''); // Remover guiones al inicio/final
+};
+
+const extractCityFromLocation = (location: string): string => {
+  // Extraer ciudad de la ubicación (primer elemento antes de coma)
+  return location.split(',')[0].trim();
+};
+
+const extractCountryFromLocation = (location: string): string => {
+  // Extraer país de la ubicación (último elemento después de coma)
+  const parts = location.split(',');
+  return parts[parts.length - 1].trim();
+};
+
+const assignHomeyAmenities = async (siteUrl: string, auth: string, postId: number, amenities: string[]): Promise<void> => {
+  try {
+    console.log('🏷️ Asignando amenidades...');
+    
+    // Obtener taxonomías de amenidades existentes
+    const taxonomiesUrl = `${siteUrl}/wp-json/wp/v2/property_feature`;
+    const response = await fetch(taxonomiesUrl, {
+      headers: { 'Authorization': `Basic ${auth}` }
+    });
+
+    if (response.ok) {
+      const existingFeatures = await response.json();
+      const amenityIds: number[] = [];
+
+      for (const amenity of amenities) {
+        // Buscar si la amenidad ya existe
+        const existingFeature = existingFeatures.find((f: any) => 
+          f.name.toLowerCase() === amenity.toLowerCase()
+        );
+
+        if (existingFeature) {
+          amenityIds.push(existingFeature.id);
+        } else {
+          // Crear nueva amenidad si no existe
+          try {
+            const createResponse = await fetch(taxonomiesUrl, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Basic ${auth}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                name: amenity,
+                slug: createListingSlug(amenity)
+              })
+            });
+
+            if (createResponse.ok) {
+              const newFeature = await createResponse.json();
+              amenityIds.push(newFeature.id);
+            }
+          } catch (error) {
+            console.error('Error creando amenidad:', amenity, error);
+          }
+        }
+      }
+
+      // Asignar amenidades al post
+      if (amenityIds.length > 0) {
+        await fetch(`${siteUrl}/wp-json/wp/v2/property/${postId}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Basic ${auth}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            property_feature: amenityIds
+          })
+        });
+        console.log('✅ Amenidades asignadas:', amenityIds);
+      }
+    }
+  } catch (error) {
+    console.error('❌ Error asignando amenidades:', error);
   }
 };
 
@@ -210,15 +357,16 @@ const formatListingContent = (listingData: HomeyListingData): string => {
 <div class="listing-content">
   ${listingData.description}
   
-  <h3>Detalles de la propiedad</h3>
+  <h3>Property Details</h3>
   <ul>
-    <li><strong>Habitaciones:</strong> ${listingData.bedrooms}</li>
-    <li><strong>Baños:</strong> ${listingData.bathrooms}</li>
-    <li><strong>Huéspedes:</strong> ${listingData.guests}</li>
-    <li><strong>Ubicación:</strong> ${listingData.location}</li>
+    <li><strong>Bedrooms:</strong> ${listingData.bedrooms}</li>
+    <li><strong>Bathrooms:</strong> ${listingData.bathrooms}</li>
+    <li><strong>Guests:</strong> ${listingData.guests}</li>
+    <li><strong>Location:</strong> ${listingData.location}</li>
+    <li><strong>Price:</strong> ${listingData.price}</li>
   </ul>
   
-  <h3>Amenidades</h3>
+  <h3>Amenities</h3>
   <ul>
     ${listingData.amenities.map(amenity => `<li>${amenity}</li>`).join('')}
   </ul>

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Upload, Globe, Lock, User, Wifi, WifiOff } from 'lucide-react';
+import { Upload, Globe, Lock, User, Wifi, WifiOff, ExternalLink } from 'lucide-react';
 import { ScrapingData } from '@/types/scraping';
 import { WordPressCredentials, HomeyListingData, PublishResponse } from '@/types/wordpress';
 import { publishToWordPress, testWordPressConnection } from '@/utils/wordpressPublisher';
@@ -127,7 +127,7 @@ export const WordPressPublisher: React.FC<WordPressPublisherProps> = ({ data }) 
       if (result.success) {
         toast({
           title: "✅ Publicación exitosa",
-          description: `Listing publicado con ID: ${result.postId}`,
+          description: `Homey Listing publicado con ID: ${result.postId}`,
         });
       } else {
         toast({
@@ -255,7 +255,7 @@ export const WordPressPublisher: React.FC<WordPressPublisherProps> = ({ data }) 
         <div className="bg-white rounded-lg p-4 border space-y-4">
           <h4 className="font-medium flex items-center space-x-2">
             <User className="h-4 w-4" />
-            <span>Datos del Listing</span>
+            <span>Datos del Homey Listing</span>
           </h4>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -269,7 +269,7 @@ export const WordPressPublisher: React.FC<WordPressPublisherProps> = ({ data }) 
             </div>
             
             <div>
-              <Label htmlFor="listingPrice">Precio</Label>
+              <Label htmlFor="listingPrice">Precio por noche</Label>
               <Input
                 id="listingPrice"
                 value={listingData.price}
@@ -298,7 +298,7 @@ export const WordPressPublisher: React.FC<WordPressPublisherProps> = ({ data }) 
             </div>
             
             <div>
-              <Label htmlFor="listingGuests">Huéspedes</Label>
+              <Label htmlFor="listingGuests">Huéspedes máximos</Label>
               <Input
                 id="listingGuests"
                 type="number"
@@ -308,7 +308,7 @@ export const WordPressPublisher: React.FC<WordPressPublisherProps> = ({ data }) 
             </div>
             
             <div>
-              <Label htmlFor="listingLocation">Ubicación</Label>
+              <Label htmlFor="listingLocation">Ubicación completa</Label>
               <Input
                 id="listingLocation"
                 value={listingData.location}
@@ -318,7 +318,7 @@ export const WordPressPublisher: React.FC<WordPressPublisherProps> = ({ data }) 
           </div>
           
           <div>
-            <Label htmlFor="listingDescription">Descripción</Label>
+            <Label htmlFor="listingDescription">Descripción del listing</Label>
             <Textarea
               id="listingDescription"
               rows={4}
@@ -330,7 +330,7 @@ export const WordPressPublisher: React.FC<WordPressPublisherProps> = ({ data }) 
           <div>
             <Label>Imágenes a publicar</Label>
             <div className="text-sm text-gray-600 mt-1">
-              Se publicarán {listingData.images.length} imágenes automáticamente
+              Se publicarán {listingData.images.length} imágenes automáticamente en la galería de Homey
             </div>
             <div className="grid grid-cols-4 gap-2 mt-2">
               {listingData.images.slice(0, 8).map((image, index) => (
@@ -348,6 +348,20 @@ export const WordPressPublisher: React.FC<WordPressPublisherProps> = ({ data }) 
               </p>
             )}
           </div>
+          
+          <div>
+            <Label>Amenidades incluidas</Label>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {listingData.amenities.map((amenity, index) => (
+                <span
+                  key={index}
+                  className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded"
+                >
+                  {amenity}
+                </span>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* Publish Button */}
@@ -360,12 +374,12 @@ export const WordPressPublisher: React.FC<WordPressPublisherProps> = ({ data }) 
           {isPublishing ? (
             <>
               <Upload className="h-4 w-4 mr-2 animate-spin" />
-              Publicando en WordPress...
+              Publicando Homey Listing...
             </>
           ) : (
             <>
               <Upload className="h-4 w-4 mr-2" />
-              Publicar Listing en WordPress
+              Publicar como Homey Listing
             </>
           )}
         </Button>
@@ -378,13 +392,26 @@ export const WordPressPublisher: React.FC<WordPressPublisherProps> = ({ data }) 
               : 'bg-red-50 border-red-200 text-red-800'
           }`}>
             <h5 className="font-medium mb-2">
-              {publishResult.success ? '✅ Publicación exitosa' : '❌ Error en la publicación'}
+              {publishResult.success ? '✅ Homey Listing publicado exitosamente' : '❌ Error en la publicación'}
             </h5>
             <p className="text-sm">{publishResult.message}</p>
             {publishResult.postId && (
               <p className="text-sm mt-1 font-mono bg-white px-2 py-1 rounded">
-                <strong>ID del post:</strong> {publishResult.postId}
+                <strong>ID del Homey Listing:</strong> {publishResult.postId}
               </p>
+            )}
+            {publishResult.url && (
+              <div className="mt-2">
+                <a 
+                  href={publishResult.url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center space-x-1 text-blue-600 hover:text-blue-800 underline"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  <span>Ver Homey Listing</span>
+                </a>
+              </div>
             )}
             {publishResult.error && (
               <p className="text-sm mt-1 font-mono">{publishResult.error}</p>
