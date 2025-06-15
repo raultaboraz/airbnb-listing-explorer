@@ -40,10 +40,10 @@ export const DownloadSection: React.FC<DownloadSectionProps> = ({ data }) => {
         <div className="bg-white rounded-lg p-4 border">
           <h4 className="font-medium mb-2">ZIP Contents:</h4>
           <ul className="text-sm text-gray-600 space-y-1">
+            <li>• listing-description.txt - Formatted listing description</li>
             <li>• listing-data.json - Complete listing information</li>
-            <li>• images/ - All property images</li>
-            <li>• reviews.json - Review data and ratings</li>
-            <li>• amenities.txt - List of available amenities</li>
+            <li>• reviews.txt - All reviews with ratings and comments</li>
+            <li>• images/ - All property images as JPG files</li>
           </ul>
         </div>
 

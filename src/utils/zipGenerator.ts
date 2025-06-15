@@ -40,20 +40,43 @@ Extracted on: ${new Date(data.extractedAt).toLocaleString()}`;
   };
   zip.file('listing-data.json', JSON.stringify(jsonData, null, 2));
 
-  // Create images folder and download all images
+  // Create separate reviews file
+  const reviewsText = `Reviews for ${data.title}
+Total Reviews: ${data.reviews.count}
+Average Rating: ${data.reviews.rating}/5 stars
+
+Recent Reviews:
+${data.reviews.recent.map(review => `
+Author: ${review.author}
+Rating: ${review.rating}/5 stars
+Comment: ${review.text}
+${'='.repeat(50)}
+`).join('')}`;
+
+  zip.file('reviews.txt', reviewsText);
+
+  // Create images folder and download all images as JPG files
   const imagesFolder = zip.folder('images');
   
   if (imagesFolder && data.images.length > 0) {
     const imagePromises = data.images.map(async (imageUrl, index) => {
       try {
         const response = await fetch(imageUrl);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
         const blob = await response.blob();
-        const extension = imageUrl.split('.').pop()?.split('?')[0] || 'jpg';
-        imagesFolder.file(`image-${index + 1}.${extension}`, blob);
+        
+        // Always save as JPG with proper filename
+        const fileName = `image-${String(index + 1).padStart(2, '0')}.jpg`;
+        imagesFolder.file(fileName, blob);
+        
+        console.log(`Successfully downloaded image ${index + 1}`);
       } catch (error) {
         console.error(`Failed to download image ${index + 1}:`, error);
         // Add a text file noting the failed download
-        imagesFolder.file(`image-${index + 1}-failed.txt`, `Failed to download: ${imageUrl}`);
+        const errorFileName = `image-${String(index + 1).padStart(2, '0')}-failed.txt`;
+        imagesFolder.file(errorFileName, `Failed to download: ${imageUrl}\nError: ${error}`);
       }
     });
 
