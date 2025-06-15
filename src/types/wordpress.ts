@@ -31,5 +31,6 @@ export interface TestConnectionResponse {
   success: boolean;
   message: string;
   homeyInstalled?: boolean;
+  homeyEndpoints?: string[];
   error?: string;
 }

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -41,6 +40,7 @@ export const WordPressPublisher: React.FC<WordPressPublisherProps> = ({ data }) 
   const [isPublishing, setIsPublishing] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
+  const [homeyEndpoints, setHomeyEndpoints] = useState<string[]>([]);
   const [publishResult, setPublishResult] = useState<PublishResponse | null>(null);
 
   // Load saved credentials on component mount
@@ -69,6 +69,7 @@ export const WordPressPublisher: React.FC<WordPressPublisherProps> = ({ data }) 
     setCredentials(prev => ({ ...prev, [field]: value }));
     // Reset connection status when credentials change
     setIsConnected(null);
+    setHomeyEndpoints([]);
   };
 
   const handleListingDataChange = (field: keyof HomeyListingData, value: string | number) => {
@@ -87,15 +88,17 @@ export const WordPressPublisher: React.FC<WordPressPublisherProps> = ({ data }) 
 
     setIsTesting(true);
     setIsConnected(null);
+    setHomeyEndpoints([]);
 
     try {
       const result = await testWordPressConnection(credentials);
       setIsConnected(result.success);
       
       if (result.success) {
+        setHomeyEndpoints(result.homeyEndpoints || []);
         toast({
           title: "✅ Conexión exitosa",
-          description: `Conectado a WordPress. Plugin Homey: ${result.homeyInstalled ? 'Instalado' : 'No detectado'}`,
+          description: `Conectado a WordPress. ${result.homeyInstalled ? `Homey detectado con endpoints: ${result.homeyEndpoints?.join(', ')}` : 'Plugin Homey no detectado'}`,
         });
       } else {
         toast({
@@ -127,7 +130,7 @@ export const WordPressPublisher: React.FC<WordPressPublisherProps> = ({ data }) 
       if (result.success) {
         toast({
           title: "✅ Publicación exitosa",
-          description: `Homey Listing publicado con ID: ${result.postId}`,
+          description: `Listing publicado con ID: ${result.postId}`,
         });
       } else {
         toast({
@@ -181,6 +184,11 @@ export const WordPressPublisher: React.FC<WordPressPublisherProps> = ({ data }) 
                   <>
                     <Wifi className="h-4 w-4" />
                     <span>Conectado</span>
+                    {homeyEndpoints.length > 0 && (
+                      <span className="text-xs bg-green-100 text-green-800 px-1 rounded">
+                        Homey: {homeyEndpoints.join(', ')}
+                      </span>
+                    )}
                   </>
                 ) : (
                   <>
@@ -392,12 +400,12 @@ export const WordPressPublisher: React.FC<WordPressPublisherProps> = ({ data }) 
               : 'bg-red-50 border-red-200 text-red-800'
           }`}>
             <h5 className="font-medium mb-2">
-              {publishResult.success ? '✅ Homey Listing publicado exitosamente' : '❌ Error en la publicación'}
+              {publishResult.success ? '✅ Listing publicado exitosamente' : '❌ Error en la publicación'}
             </h5>
             <p className="text-sm">{publishResult.message}</p>
             {publishResult.postId && (
               <p className="text-sm mt-1 font-mono bg-white px-2 py-1 rounded">
-                <strong>ID del Homey Listing:</strong> {publishResult.postId}
+                <strong>ID del Listing:</strong> {publishResult.postId}
               </p>
             )}
             {publishResult.url && (
@@ -409,7 +417,7 @@ export const WordPressPublisher: React.FC<WordPressPublisherProps> = ({ data }) 
                   className="inline-flex items-center space-x-1 text-blue-600 hover:text-blue-800 underline"
                 >
                   <ExternalLink className="h-4 w-4" />
-                  <span>Ver Homey Listing</span>
+                  <span>Ver Listing</span>
                 </a>
               </div>
             )}
