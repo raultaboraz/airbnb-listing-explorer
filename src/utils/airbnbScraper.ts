@@ -240,7 +240,7 @@ const parseAirbnbHTML = async (
     const bedroomMatch = text.match(/(\d+)\s*(?:bedrooms?|habitaciones?|dormitorios?)/i);
     if (bedroomMatch) bedrooms = parseInt(bedroomMatch[1]);
 
-    const bathroomMatch = text.match/(\d+)\s*(?:bathrooms?|baños?)/i);
+    const bathroomMatch = text.match(/(\d+)\s*(?:bathrooms?|baños?)/i);
     if (bathroomMatch) bathrooms = parseInt(bathroomMatch[1]);
   });
 
