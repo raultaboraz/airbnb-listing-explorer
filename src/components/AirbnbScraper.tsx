@@ -10,11 +10,11 @@ import { ScrapingData } from '@/types/scraping';
 import { useToast } from '@/hooks/use-toast';
 import { translateListingData } from '@/utils/translator';
 import { scrapeAirbnbListing } from '@/utils/advancedAirbnbScraper';
+import { scrapeWithApify } from '@/utils/apifyScraper';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Info, Settings, RefreshCw, AlertTriangle } from 'lucide-react';
 import { ScrapingMethod } from './ScrapingMethodSelector';
-import { scrapeWithApify } from '@/utils/advancedAirbnbScraper';
 
 export const AirbnbScraper = () => {
   const [isLoading, setIsLoading] = useState(false);
