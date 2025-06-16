@@ -1,6 +1,6 @@
 import { WordPressCredentials, HomeyListingData, PublishResponse } from '@/types/wordpress';
 import { uploadImages, assignImagesToListing } from './imageUploader';
-import { createHomeyMetadata } from './homeyMetadata';
+import { createHomeyMetadata, generateHomeyMetadata } from './homeyMetadata';
 import { translateListingData } from './translator';
 
 export interface TestConnectionResponse {
@@ -123,154 +123,127 @@ export const publishToWordPress = async (
   listingData: HomeyListingData
 ): Promise<PublishResponse> => {
   try {
-    console.log('📝 Iniciando publicación en WordPress como Homey Listing...');
-    
-    // 1. Translate content to English and clean price
+    const { siteUrl, username, password } = credentials;
+    const auth = btoa(`${username}:${password}`);
+
+    console.log('🚀 Iniciando publicación en WordPress...');
+    console.log('📋 Datos del listing:', {
+      title: listingData.title,
+      price: listingData.price, // Should be clean number now
+      guests: listingData.guests,
+      bedrooms: listingData.bedrooms,
+      bathrooms: listingData.bathrooms,
+      location: listingData.location
+    });
+
+    // 1. Test connection first
+    const connectionTest = await testWordPressConnection(credentials);
+    if (!connectionTest.success) {
+      throw new Error(connectionTest.message);
+    }
+
+    // 2. Translate data to English if needed
+    console.log('🌐 Verificando traducción...');
     const translatedData = await translateListingData(listingData);
-    console.log('🌐 Datos procesados:');
-    console.log('- Título traducido:', translatedData.title !== listingData.title ? 'Sí' : 'No');
-    console.log('- Precio limpio:', translatedData.price);
-    console.log('- Ubicación:', translatedData.location);
+    console.log('✅ Datos traducidos:', {
+      originalTitle: listingData.title,
+      translatedTitle: translatedData.title,
+      cleanPrice: translatedData.price
+    });
 
-    const siteUrl = credentials.siteUrl.replace(/\/+$/, '');
-    const apiUrl = `${siteUrl}/wp-json/wp/v2`;
+    // 3. Generate Homey metadata with clean price
+    const homeyMetadata = generateHomeyMetadata(translatedData);
 
-    const auth = btoa(`${credentials.username}:${credentials.password}`);
-    const headers = {
-      'Authorization': `Basic ${auth}`,
-      'Content-Type': 'application/json'
+    // 4. Upload images first
+    let uploadedImageIds: number[] = [];
+    if (translatedData.images && translatedData.images.length > 0) {
+      console.log(`📸 Subiendo ${translatedData.images.length} imágenes...`);
+      uploadedImageIds = await uploadImages(siteUrl, auth, translatedData.images);
+      console.log(`✅ ${uploadedImageIds.length} imágenes subidas`);
+    }
+
+    // 5. Determine which endpoint to use
+    const usedEndpoint = connectionTest.homeyEndpoints?.includes('listing') ? 'listing' : 'posts';
+    console.log(`📡 Usando endpoint: ${usedEndpoint}`);
+
+    // 6. Create the listing post
+    const slug = translatedData.title.toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .trim();
+
+    const postData: any = {
+      title: translatedData.title,
+      content: `${translatedData.description}\n\n${translatedData.aboutSpace || ''}`,
+      status: 'publish',
+      slug: slug,
+      meta: homeyMetadata
     };
 
-    // 2. Test connection and get available endpoints
-    console.log('🔍 Verificando endpoints de Homey disponibles...');
-    const connectionTest = await testWordPressConnection(credentials);
-    const availableEndpoints = connectionTest.homeyEndpoints || [];
-    
-    // 3. Upload ALL images
-    console.log('📸 Subiendo todas las imágenes...');
-    const uploadedImageIds = await uploadImages(siteUrl, auth, translatedData.images);
-    console.log(`✅ ${uploadedImageIds.length}/${translatedData.images.length} imágenes subidas`);
-    
-    // 4. Create listing slug
-    const slug = createListingSlug(translatedData.title);
-    
-    // 5. Prepare comprehensive Homey metadata
-    console.log('🏠 Preparando metadatos completos de Homey...');
-    const homeyMetadata = createHomeyMetadata(translatedData, uploadedImageIds);
-    
-    // 6. Try to create as Homey Listing
-    let createdPost: any = null;
-    let usedEndpoint = '';
-    
-    const endpointsToTry = [
-      'property',
-      'listings',
-      'fave_property', 
-      'homey_listing',
-      'properties'
-    ].filter(endpoint => availableEndpoints.includes(endpoint));
-    
-    if (endpointsToTry.length === 0) {
-      endpointsToTry.push('property', 'listings');
-    }
-    
-    console.log('🔄 Probando endpoints de Homey:', endpointsToTry);
-    
-    for (const endpoint of endpointsToTry) {
-      try {
-        console.log(`🔄 Intentando crear Homey Listing en /${endpoint}...`);
-        
-        const listingPostData = {
-          title: translatedData.title,
-          content: formatListingContent(translatedData),
-          status: translatedData.status,
-          slug: slug,
-          featured_media: uploadedImageIds[0] || 0,
-          meta: homeyMetadata
-        };
-        
-        const response = await fetch(`${apiUrl}/${endpoint}`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(listingPostData)
-        });
-        
-        if (response.ok) {
-          createdPost = await response.json();
-          usedEndpoint = endpoint;
-          console.log(`✅ Homey Listing creado exitosamente en /${endpoint}:`, createdPost.id);
-          break;
-        } else {
-          const errorText = await response.text();
-          console.log(`❌ Error en /${endpoint} (${response.status}):`, errorText);
-        }
-        
-      } catch (error) {
-        console.log(`❌ Error probando /${endpoint}:`, error);
-      }
-    }
-    
-    // 7. Fallback to standard post if needed
-    if (!createdPost) {
-      console.log('🔄 Creando como post estándar con metadatos de Homey...');
-      
-      const standardPostData = {
-        title: translatedData.title,
-        content: formatListingContent(translatedData),
-        status: translatedData.status,
-        slug: slug,
-        featured_media: uploadedImageIds[0] || 0,
-        meta: homeyMetadata
-      };
-      
-      const response = await fetch(`${apiUrl}/posts`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(standardPostData)
-      });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ Error creando post estándar:', response.status, errorText);
-        throw new Error(`Error HTTP ${response.status}: ${errorText}`);
-      }
-      
-      createdPost = await response.json();
-      usedEndpoint = 'posts';
-      console.log('✅ Post estándar creado con metadatos de Homey:', createdPost.id);
+    // Add featured image if available
+    if (uploadedImageIds.length > 0) {
+      postData.featured_media = uploadedImageIds[0];
     }
 
-    // 8. Assign images to listing gallery AFTER creation
-    await assignImagesToListing(siteUrl, auth, createdPost.id, uploadedImageIds, usedEndpoint);
+    const createUrl = usedEndpoint === 'posts' ? 
+      `${siteUrl}/wp-json/wp/v2/posts` : 
+      `${siteUrl}/wp-json/wp/v2/${usedEndpoint}`;
+
+    console.log('📝 Creando post con metadatos...');
+    const createResponse = await fetch(createUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${auth}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(postData)
+    });
+
+    if (!createResponse.ok) {
+      const errorText = await createResponse.text();
+      throw new Error(`Error creating post: ${createResponse.status} - ${errorText}`);
+    }
+
+    const createdPost = await createResponse.json();
+    console.log('✅ Post creado:', createdPost.id);
+
+    // 7. Force assign metadata after creation
+    console.log('🔄 Forzando asignación de metadatos...');
+    await forceAssignHomeyMetadata(siteUrl, auth, createdPost.id, homeyMetadata, usedEndpoint);
+
+    // 8. Assign images to listing gallery
+    if (uploadedImageIds.length > 0) {
+      await assignImagesToListing(siteUrl, auth, createdPost.id, uploadedImageIds, usedEndpoint);
+    }
 
     // 9. Assign amenities
     if (translatedData.amenities.length > 0) {
       await assignHomeyAmenities(siteUrl, auth, createdPost.id, translatedData.amenities, usedEndpoint);
     }
 
-    // 10. Generate correct listing URL
+    // 10. Generate listing URL
     let listingUrl: string;
     if (usedEndpoint === 'posts') {
       listingUrl = `${siteUrl}/${slug}/`;
     } else {
       listingUrl = `${siteUrl}/listing/${slug}/`;
     }
-    
-    console.log('✅ URL del listing generada:', listingUrl);
-    
+
+    console.log('✅ Publicación completada exitosamente');
     return {
       success: true,
       postId: createdPost.id,
-      message: `${usedEndpoint === 'posts' ? 'Post con metadatos de Homey' : 'Homey Listing'} publicado exitosamente con ${uploadedImageIds.length} imágenes en galería`,
+      message: `Listing published successfully! Post ID: ${createdPost.id}`,
       url: listingUrl
     };
 
   } catch (error) {
-    console.error('❌ Error durante la publicación:', error);
+    console.error('❌ Error durante publicación:', error);
     return {
       success: false,
-      message: 'Error durante la publicación en WordPress',
-      error: error instanceof Error ? error.message : 'Error desconocido'
+      message: `Publication failed: ${error}`,
+      error: error instanceof Error ? error.message : String(error)
     };
   }
 };

@@ -1,112 +1,126 @@
 
 import { HomeyListingData } from '@/types/wordpress';
 
-export const createHomeyMetadata = (listingData: HomeyListingData, uploadedImageIds: number[]) => {
-  console.log('🏠 Creando metadatos completos de Homey...');
+export const generateHomeyMetadata = (listingData: HomeyListingData) => {
+  console.log('🏠 Generando metadatos específicos de Homey...');
   
-  // Use the clean price number (already extracted)
-  const priceNumber = listingData.price || '0';
+  // Clean price - ensure it's only numbers
+  const cleanPrice = listingData.price.replace(/[^\d]/g, '');
   
-  // Ensure location is always included
-  const location = listingData.location || 'Location not specified';
-  
-  console.log('📋 Metadatos a crear:');
-  console.log('- Precio:', priceNumber);
-  console.log('- Ubicación:', location);
-  console.log('- Habitaciones:', listingData.bedrooms);
-  console.log('- Baños:', listingData.bathrooms);
-  console.log('- Huéspedes:', listingData.guests);
-  console.log('- Imágenes galería:', uploadedImageIds.length);
-
-  // Comprehensive Homey metadata mapping with proper data types
   const metadata = {
-    // GALERÍA - Campo principal de Homey
-    'homey_listings_images': uploadedImageIds,
-    'fave_property_images': uploadedImageIds,
-    'property_gallery': uploadedImageIds,
-    'listing_gallery': uploadedImageIds,
-    '_property_gallery': uploadedImageIds,
-    
-    // PRECIO - Múltiples formatos para compatibilidad
-    'fave_property_price': priceNumber,
-    'property_price': priceNumber,
-    'homey_property_price': priceNumber,
-    'listing_price': priceNumber,
-    '_price': priceNumber,
-    'price': priceNumber,
-    
-    // PRECIO - Configuración adicional
-    'fave_property_price_postfix': 'per night',
-    'fave_currency': 'USD',
-    'fave_currency_symbol': '$',
-    
-    // HABITACIONES
-    'fave_property_bedrooms': listingData.bedrooms?.toString() || '1',
-    'property_bedrooms': listingData.bedrooms?.toString() || '1',
-    'homey_property_bedrooms': listingData.bedrooms?.toString() || '1',
-    'listing_bedrooms': listingData.bedrooms?.toString() || '1',
-    'bedrooms': listingData.bedrooms?.toString() || '1',
-    'fave_property_rooms': listingData.bedrooms?.toString() || '1',
-    
-    // BAÑOS
-    'fave_property_bathrooms': listingData.bathrooms?.toString() || '1',
-    'property_bathrooms': listingData.bathrooms?.toString() || '1',
-    'homey_property_bathrooms': listingData.bathrooms?.toString() || '1',
-    'listing_bathrooms': listingData.bathrooms?.toString() || '1',
-    'bathrooms': listingData.bathrooms?.toString() || '1',
-    
-    // HUÉSPEDES
-    'fave_property_guests': listingData.guests?.toString() || '2',
-    'property_guests': listingData.guests?.toString() || '2',
-    'homey_property_guests': listingData.guests?.toString() || '2',
-    'listing_guests': listingData.guests?.toString() || '2',
-    'guests': listingData.guests?.toString() || '2',
-    'max_guests': listingData.guests?.toString() || '2',
-    
-    // UBICACIÓN - Múltiples campos
-    'fave_property_address': location,
-    'fave_property_location': location,
-    'fave_property_map_address': location,
-    'property_location': location,
-    'property_address': location,
-    'homey_property_location': location,
-    'homey_property_address': location,
-    'listing_location': location,
-    'listing_address': location,
-    'address': location,
-    'location': location,
-    'fave_property_city': location.split(',')[0]?.trim() || location,
-    
-    // TIPO DE PROPIEDAD
-    'fave_property_type': listingData.propertyType || 'apartment',
-    'property_type': listingData.propertyType || 'apartment',
+    // Basic Homey fields
+    'homey_listing_type': 'entire_place',
+    'homey_listing_status': 'publish',
     'homey_property_type': listingData.propertyType || 'apartment',
-    'listing_type': listingData.propertyType || 'apartment',
     
-    // STATUS
-    'fave_property_status': 'for-rent',
-    'fave_property_listing_type': 'rent',
-    'property_status': 'for-rent',
-    'listing_status': 'for-rent',
+    // Price fields (multiple variants for compatibility)
+    'homey_price': cleanPrice,
+    'homey_listing_price': cleanPrice,
+    'homey_price_per_night': cleanPrice,
+    'homey_nightly_price': cleanPrice,
+    'fave_property_price': cleanPrice,
+    'property_price': cleanPrice,
+    'listing_price': cleanPrice,
     
-    // BOOKING Y DISPONIBILIDAD
-    'fave_property_booking': 'yes',
-    'fave_property_instant_booking': 'no',
-    'fave_property_check_in_time': '15:00',
-    'fave_property_check_out_time': '11:00',
-    'property_booking': 'yes',
-    'booking_enabled': 'yes',
+    // Capacity fields (multiple variants)
+    'homey_guests': listingData.guests.toString(),
+    'homey_max_guests': listingData.guests.toString(),
+    'homey_listing_guests': listingData.guests.toString(),
+    'fave_property_guests': listingData.guests.toString(),
+    'property_guests': listingData.guests.toString(),
+    'max_guests': listingData.guests.toString(),
     
-    // SEO Y DISPLAY
-    'fave_featured': '0',
-    'fave_agent_display_option': 'none'
+    // Bedroom fields
+    'homey_bedrooms': listingData.bedrooms.toString(),
+    'homey_listing_bedrooms': listingData.bedrooms.toString(),
+    'fave_property_bedrooms': listingData.bedrooms.toString(),
+    'property_bedrooms': listingData.bedrooms.toString(),
+    'bedrooms': listingData.bedrooms.toString(),
+    'rooms': listingData.bedrooms.toString(),
+    
+    // Bathroom fields
+    'homey_bathrooms': listingData.bathrooms.toString(),
+    'homey_listing_bathrooms': listingData.bathrooms.toString(),
+    'fave_property_bathrooms': listingData.bathrooms.toString(),
+    'property_bathrooms': listingData.bathrooms.toString(),
+    'bathrooms': listingData.bathrooms.toString(),
+    
+    // Location fields
+    'homey_listing_location': listingData.location,
+    'homey_property_address': listingData.location,
+    'fave_property_address': listingData.location,
+    'property_address': listingData.location,
+    'listing_location': listingData.location,
+    
+    // Status and availability
+    'homey_listing_availability': 'available',
+    'homey_booking_status': 'instant',
+    'property_status': listingData.status || 'publish',
+    
+    // Additional useful fields
+    'homey_min_stay': '1',
+    'homey_max_stay': '365',
+    'homey_check_in': '15:00',
+    'homey_check_out': '11:00',
+    
+    // SEO and display
+    'homey_featured': '0',
+    'homey_verified': '1'
   };
 
-  console.log('✅ Metadatos de Homey creados:', Object.keys(metadata).length, 'campos');
-  console.log('🖼️ Campo principal de galería (homey_listings_images):', uploadedImageIds);
-  console.log('💰 Precio configurado:', priceNumber);
-  console.log('🏠 Huéspedes configurado:', listingData.guests);
-  console.log('🛏️ Habitaciones configurado:', listingData.bedrooms);
+  console.log('📋 Metadatos de Homey generados:', Object.keys(metadata).length, 'campos');
+  console.log('💰 Precio limpio asignado:', cleanPrice);
+  console.log('👥 Huéspedes:', listingData.guests);
+  console.log('🛏️ Habitaciones:', listingData.bedrooms);
+  console.log('🚿 Baños:', listingData.bathrooms);
   
   return metadata;
+};
+
+export const forceAssignHomeyMetadata = async (
+  siteUrl: string,
+  auth: string,
+  postId: number,
+  metadata: Record<string, string>,
+  usedEndpoint: string
+): Promise<void> => {
+  console.log('🔧 Forzando asignación de metadatos de Homey...');
+  
+  // Method 1: Bulk meta assignment using WordPress meta API
+  const metaEntries = Object.entries(metadata);
+  const batchSize = 5; // Process in smaller batches to avoid timeouts
+  
+  for (let i = 0; i < metaEntries.length; i += batchSize) {
+    const batch = metaEntries.slice(i, i + batchSize);
+    console.log(`📦 Procesando lote ${Math.floor(i/batchSize) + 1}: ${batch.length} campos`);
+    
+    for (const [key, value] of batch) {
+      try {
+        const response = await fetch(`${siteUrl}/wp-json/wp/v2/posts/${postId}/meta`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Basic ${auth}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            key: key,
+            value: value
+          })
+        });
+
+        if (response.ok) {
+          console.log(`✅ ${key}: ${value}`);
+        } else {
+          console.log(`❌ Error ${key}:`, response.status);
+        }
+      } catch (error) {
+        console.log(`❌ Error asignando ${key}:`, error);
+      }
+    }
+    
+    // Small delay between batches
+    await new Promise(resolve => setTimeout(resolve, 200));
+  }
+  
+  console.log('✅ Asignación de metadatos completada');
 };
