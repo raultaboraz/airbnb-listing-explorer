@@ -1,6 +1,7 @@
+
 import { WordPressCredentials, HomeyListingData, PublishResponse } from '@/types/wordpress';
 import { uploadImages, assignImagesToListing } from './imageUploader';
-import { createHomeyMetadata, generateHomeyMetadata } from './homeyMetadata';
+import { generateHomeyMetadata, forceAssignHomeyMetadata } from './homeyMetadata';
 import { translateListingData } from './translator';
 
 export interface TestConnectionResponse {
