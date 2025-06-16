@@ -240,15 +240,19 @@ export const publishToWordPress = async (
       console.log('✅ Post estándar creado con metadatos de Homey:', createdPost.id);
     }
 
-    // 8. Assign images to listing gallery
+    // 8. Force assign metadata after creation (important for Homey)
+    console.log('🔄 Forzando asignación de metadatos específicos...');
+    await forceAssignHomeyMetadata(siteUrl, auth, createdPost.id, homeyMetadata, usedEndpoint);
+
+    // 9. Assign images to listing gallery
     await assignImagesToListing(siteUrl, auth, createdPost.id, uploadedImageIds, usedEndpoint);
 
-    // 9. Assign amenities
+    // 10. Assign amenities
     if (translatedData.amenities.length > 0) {
       await assignHomeyAmenities(siteUrl, auth, createdPost.id, translatedData.amenities, usedEndpoint);
     }
 
-    // 10. Generate correct listing URL
+    // 11. Generate correct listing URL
     let listingUrl: string;
     if (usedEndpoint === 'posts') {
       listingUrl = `${siteUrl}/${slug}/`;
@@ -419,6 +423,53 @@ const assignHomeyAmenities = async (
     }
   } catch (error) {
     console.error('❌ Error asignando amenidades:', error);
+  }
+};
+
+const forceAssignHomeyMetadata = async (
+  siteUrl: string, 
+  auth: string, 
+  postId: number, 
+  metadata: Record<string, any>,
+  usedEndpoint: string
+): Promise<void> => {
+  console.log('🔄 Forzando asignación individual de metadatos críticos...');
+  
+  // Critical metadata fields that MUST be set
+  const criticalFields = {
+    'homey_listings_images': metadata['homey_listings_images'],
+    'fave_property_price': metadata['fave_property_price'],
+    'fave_property_guests': metadata['fave_property_guests'],
+    'fave_property_bedrooms': metadata['fave_property_bedrooms'],
+    'fave_property_bathrooms': metadata['fave_property_bathrooms'],
+    'fave_property_location': metadata['fave_property_location'],
+    'fave_property_address': metadata['fave_property_address']
+  };
+  
+  for (const [key, value] of Object.entries(criticalFields)) {
+    if (value !== undefined && value !== null) {
+      try {
+        const response = await fetch(`${siteUrl}/wp-json/wp/v2/posts/${postId}/meta`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Basic ${auth}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            key: key,
+            value: value
+          })
+        });
+        
+        if (response.ok) {
+          console.log(`✅ Metadata crítico ${key} asignado: ${value}`);
+        } else {
+          console.log(`❌ Error asignando metadata crítico ${key}:`, response.status);
+        }
+      } catch (error) {
+        console.log(`❌ Error asignando metadata crítico ${key}:`, error);
+      }
+    }
   }
 };
 

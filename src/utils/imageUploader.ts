@@ -60,7 +60,7 @@ export const assignImagesToListing = async (
   usedEndpoint: string
 ): Promise<void> => {
   try {
-    console.log('🖼️ Asignando imágenes a galería de Homey Listing...');
+    console.log('🖼️ Asignando galería completa de Homey...');
     
     if (imageIds.length === 0) {
       console.log('⚠️ No hay imágenes para asignar');
@@ -70,82 +70,64 @@ export const assignImagesToListing = async (
     console.log(`📋 Asignando ${imageIds.length} imágenes al listing ID: ${postId}`);
     console.log('🔗 IDs de imágenes:', imageIds);
 
-    // Method 1: Assign Homey gallery field directly
-    const homeyGalleryField = 'homey_listings_images';
-    
-    try {
-      // First, try to update the homey_listings_images field with the array of image IDs
-      const homeyGalleryResponse = await fetch(`${siteUrl}/wp-json/wp/v2/posts/${postId}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Basic ${auth}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          meta: {
-            [homeyGalleryField]: imageIds
-          }
-        })
-      });
+    // Update the listing with gallery metadata using the correct endpoint
+    const updateUrl = usedEndpoint === 'posts' ? 
+      `${siteUrl}/wp-json/wp/v2/posts/${postId}` : 
+      `${siteUrl}/wp-json/wp/v2/${usedEndpoint}/${postId}`;
 
-      if (homeyGalleryResponse.ok) {
-        console.log(`✅ Campo ${homeyGalleryField} asignado con ${imageIds.length} imágenes`);
-      } else {
-        console.log(`⚠️ Error asignando ${homeyGalleryField}:`, homeyGalleryResponse.status);
-      }
-    } catch (error) {
-      console.log(`❌ Error actualizando ${homeyGalleryField}:`, error);
+    // Method 1: Update using the listing endpoint with meta fields
+    const galleryMetadata = {
+      homey_listings_images: imageIds,
+      fave_property_images: imageIds,
+      property_gallery: imageIds,
+      listing_gallery: imageIds,
+      _property_gallery: imageIds
+    };
+
+    console.log('📝 Actualizando metadatos de galería:', galleryMetadata);
+
+    const metaResponse = await fetch(updateUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${auth}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        meta: galleryMetadata,
+        featured_media: imageIds[0]
+      })
+    });
+
+    if (metaResponse.ok) {
+      console.log('✅ Metadatos de galería asignados correctamente');
+    } else {
+      const errorText = await metaResponse.text();
+      console.log('⚠️ Error en asignación de metadatos:', metaResponse.status, errorText);
     }
 
-    // Method 2: Try alternative Homey gallery field names
-    const alternativeFields = [
-      'fave_property_images',
-      'property_gallery',
-      'listing_gallery',
-      '_property_gallery'
-    ];
-
-    for (const fieldName of alternativeFields) {
+    // Method 2: Try using WordPress meta API directly
+    for (const [metaKey, metaValue] of Object.entries(galleryMetadata)) {
       try {
-        const response = await fetch(`${siteUrl}/wp-json/wp/v2/posts/${postId}`, {
+        const directMetaResponse = await fetch(`${siteUrl}/wp-json/wp/v2/posts/${postId}/meta`, {
           method: 'POST',
           headers: {
             'Authorization': `Basic ${auth}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            meta: {
-              [fieldName]: imageIds
-            }
+            key: metaKey,
+            value: metaValue
           })
         });
-        
-        if (response.ok) {
-          console.log(`✅ Campo alternativo ${fieldName} asignado`);
+
+        if (directMetaResponse.ok) {
+          console.log(`✅ Meta directo ${metaKey} asignado`);
+        } else {
+          console.log(`❌ Error meta directo ${metaKey}:`, directMetaResponse.status);
         }
       } catch (error) {
-        console.log(`❌ Error asignando campo ${fieldName}:`, error);
+        console.log(`❌ Error asignando meta ${metaKey}:`, error);
       }
-    }
-
-    // Method 3: Set featured image
-    try {
-      const featuredImageResponse = await fetch(`${siteUrl}/wp-json/wp/v2/posts/${postId}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Basic ${auth}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          featured_media: imageIds[0]
-        })
-      });
-
-      if (featuredImageResponse.ok) {
-        console.log(`✅ Imagen destacada asignada: ${imageIds[0]}`);
-      }
-    } catch (error) {
-      console.log('❌ Error asignando imagen destacada:', error);
     }
 
     console.log('✅ Proceso de asignación de galería completado');
