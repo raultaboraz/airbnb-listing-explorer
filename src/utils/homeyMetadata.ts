@@ -39,10 +39,12 @@ export const createHomeyMetadata = (listingData: HomeyListingData, uploadedImage
     'fave_property_status': 'for-rent',
     'fave_property_listing_type': 'rent',
     
-    // Gallery images
-    'fave_property_images': uploadedImageIds.join(','),
-    'property_gallery': uploadedImageIds.join(','),
-    'homey_gallery': uploadedImageIds.join(','),
+    // HOMEY GALLERY - This is the key field for Homey listings
+    'homey_listings_images': uploadedImageIds,
+    'fave_property_images': uploadedImageIds,
+    'property_gallery': uploadedImageIds,
+    'listing_gallery': uploadedImageIds,
+    '_property_gallery': uploadedImageIds,
     
     // Additional Homey-specific fields
     'property_bedrooms': listingData.bedrooms?.toString() || '1',
@@ -76,5 +78,6 @@ export const createHomeyMetadata = (listingData: HomeyListingData, uploadedImage
   };
 
   console.log('✅ Metadatos de Homey creados:', Object.keys(metadata).length, 'campos');
+  console.log('🖼️ Campo principal de galería (homey_listings_images):', uploadedImageIds);
   return metadata;
 };

@@ -60,69 +60,97 @@ export const assignImagesToListing = async (
   usedEndpoint: string
 ): Promise<void> => {
   try {
-    console.log('🖼️ Asignando imágenes a galería del listing...');
+    console.log('🖼️ Asignando imágenes a galería de Homey Listing...');
     
     if (imageIds.length === 0) {
       console.log('⚠️ No hay imágenes para asignar');
       return;
     }
 
-    // Method 1: Update post meta directly
-    const metaUpdates = [
-      { key: 'fave_property_images', value: imageIds.join(',') },
-      { key: 'fave_property_gallery', value: imageIds.join(',') },
-      { key: '_property_gallery', value: imageIds.join(',') }
-    ];
+    console.log(`📋 Asignando ${imageIds.length} imágenes al listing ID: ${postId}`);
+    console.log('🔗 IDs de imágenes:', imageIds);
 
-    for (const meta of metaUpdates) {
-      try {
-        const response = await fetch(`${siteUrl}/wp-json/wp/v2/posts/${postId}/meta`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Basic ${auth}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(meta)
-        });
-        
-        if (response.ok) {
-          console.log(`✅ Meta ${meta.key} asignado con ${imageIds.length} imágenes`);
-        }
-      } catch (error) {
-        console.log(`❌ Error asignando meta ${meta.key}:`, error);
-      }
-    }
-
-    // Method 2: Update post directly with gallery
-    const postUpdateUrl = usedEndpoint === 'posts' ? 
-      `${siteUrl}/wp-json/wp/v2/posts/${postId}` : 
-      `${siteUrl}/wp-json/wp/v2/${usedEndpoint}/${postId}`;
-
+    // Method 1: Assign Homey gallery field directly
+    const homeyGalleryField = 'homey_listings_images';
+    
     try {
-      const updateResponse = await fetch(postUpdateUrl, {
+      // First, try to update the homey_listings_images field with the array of image IDs
+      const homeyGalleryResponse = await fetch(`${siteUrl}/wp-json/wp/v2/posts/${postId}`, {
         method: 'POST',
         headers: {
           'Authorization': `Basic ${auth}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          featured_media: imageIds[0] || 0,
           meta: {
-            'fave_property_images': imageIds.join(','),
-            'fave_property_gallery': imageIds.join(','),
-            '_property_gallery': imageIds.join(',')
+            [homeyGalleryField]: imageIds
           }
         })
       });
 
-      if (updateResponse.ok) {
-        console.log('✅ Galería de imágenes asignada al listing');
+      if (homeyGalleryResponse.ok) {
+        console.log(`✅ Campo ${homeyGalleryField} asignado con ${imageIds.length} imágenes`);
+      } else {
+        console.log(`⚠️ Error asignando ${homeyGalleryField}:`, homeyGalleryResponse.status);
       }
     } catch (error) {
-      console.log('❌ Error actualizando galería del post:', error);
+      console.log(`❌ Error actualizando ${homeyGalleryField}:`, error);
     }
 
+    // Method 2: Try alternative Homey gallery field names
+    const alternativeFields = [
+      'fave_property_images',
+      'property_gallery',
+      'listing_gallery',
+      '_property_gallery'
+    ];
+
+    for (const fieldName of alternativeFields) {
+      try {
+        const response = await fetch(`${siteUrl}/wp-json/wp/v2/posts/${postId}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Basic ${auth}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            meta: {
+              [fieldName]: imageIds
+            }
+          })
+        });
+        
+        if (response.ok) {
+          console.log(`✅ Campo alternativo ${fieldName} asignado`);
+        }
+      } catch (error) {
+        console.log(`❌ Error asignando campo ${fieldName}:`, error);
+      }
+    }
+
+    // Method 3: Set featured image
+    try {
+      const featuredImageResponse = await fetch(`${siteUrl}/wp-json/wp/v2/posts/${postId}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Basic ${auth}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          featured_media: imageIds[0]
+        })
+      });
+
+      if (featuredImageResponse.ok) {
+        console.log(`✅ Imagen destacada asignada: ${imageIds[0]}`);
+      }
+    } catch (error) {
+      console.log('❌ Error asignando imagen destacada:', error);
+    }
+
+    console.log('✅ Proceso de asignación de galería completado');
+
   } catch (error) {
-    console.error('❌ Error asignando imágenes a galería:', error);
+    console.error('❌ Error asignando imágenes a galería de Homey:', error);
   }
 };
