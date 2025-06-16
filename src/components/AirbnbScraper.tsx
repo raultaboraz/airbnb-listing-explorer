@@ -19,7 +19,7 @@ export const AirbnbScraper = () => {
   const { toast } = useToast();
 
   const resetData = () => {
-    console.log('🧹 Cleaning previous data...');
+    console.log('🧹 Limpiando datos previos...');
     setScrapingData(null);
     setProgress(0);
     setCurrentStep('');
@@ -27,55 +27,60 @@ export const AirbnbScraper = () => {
   };
 
   const extractData = async (url: string) => {
-    // Clear previous data first
+    // Limpiar datos previos primero
     resetData();
     
     setIsLoading(true);
     setProgress(0);
-    setCurrentStep('Starting extraction...');
+    setCurrentStep('Iniciando extracción...');
     
     try {
-      console.log('🚀 Starting real Airbnb data extraction for:', url);
+      console.log('🚀 Iniciando extracción real de datos de Airbnb para:', url);
       
-      // Real Airbnb scraping
+      // Scraping real de Airbnb con múltiples proxies y retry logic
       const scrapingResult = await scrapeAirbnbListing(url, (progress, step) => {
+        console.log(`📊 Progreso: ${progress}% - ${step}`);
         setProgress(progress);
         setCurrentStep(step);
       });
 
       if (!scrapingResult.success || !scrapingResult.data) {
-        throw new Error(scrapingResult.error || 'Failed to extract data from Airbnb');
+        throw new Error(scrapingResult.error || 'Falló la extracción de datos de Airbnb');
       }
 
       setProgress(95);
-      setCurrentStep('Translating to English...');
+      setCurrentStep('Traduciendo al inglés...');
 
-      // Translate data to English and clean price
-      console.log('🌐 Translating data to English...');
+      // Traducir datos al inglés
+      console.log('🌐 Traduciendo datos al inglés...');
       const translatedData = await translateListingData(scrapingResult.data);
 
       setProgress(100);
-      setCurrentStep('Extraction completed successfully!');
+      setCurrentStep('¡Extracción completada exitosamente!');
       
       setScrapingData(translatedData);
       
-      console.log('✅ Extraction completed:', {
+      console.log('✅ Extracción completada:', {
         title: translatedData.title,
         images: translatedData.images.length,
         amenities: translatedData.amenities.length,
-        price: translatedData.price
+        price: translatedData.price,
+        description: translatedData.description.length + ' caracteres'
       });
       
       toast({
-        title: "Extraction Complete!",
-        description: `Successfully extracted data for listing ${translatedData.listingId}`,
+        title: "¡Extracción Completa!",
+        description: `Datos extraídos exitosamente para el listing ${translatedData.listingId} con ${translatedData.images.length} imágenes`,
       });
 
     } catch (error) {
-      console.error('❌ Error during extraction:', error);
+      console.error('❌ Error durante la extracción:', error);
+      setProgress(0);
+      setCurrentStep('');
+      
       toast({
-        title: "Extraction Failed",
-        description: error instanceof Error ? error.message : "There was an error extracting the listing data",
+        title: "Extracción Fallida",
+        description: error instanceof Error ? error.message : "Hubo un error extrayendo los datos del listing. Intenta de nuevo en unos minutos.",
         variant: "destructive",
       });
     } finally {
