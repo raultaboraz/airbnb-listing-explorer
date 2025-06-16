@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Zap, Globe, AlertTriangle, CheckCircle, PlayCircle } from 'lucide-react';
+import { Zap, Globe, AlertTriangle, CheckCircle, PlayCircle, Cloud } from 'lucide-react';
 
 export type ScrapingMethod = 'simulated' | 'internal' | 'apify';
 
@@ -86,8 +86,8 @@ export const ScrapingMethodSelector: React.FC<ScrapingMethodSelectorProps> = ({
               <Label htmlFor="apify" className="flex items-center space-x-2 cursor-pointer">
                 <span className="font-medium">Apify Premium</span>
                 <Badge variant="default" className="bg-green-100 text-green-800">
-                  <Zap className="h-3 w-3 mr-1" />
-                  Preconfigurado
+                  <Cloud className="h-3 w-3 mr-1" />
+                  Inteligente
                 </Badge>
               </Label>
               <div className="mt-2 space-y-1">
@@ -97,13 +97,13 @@ export const ScrapingMethodSelector: React.FC<ScrapingMethodSelectorProps> = ({
                 </div>
                 <div className="flex items-center space-x-1 text-sm text-green-600">
                   <CheckCircle className="h-3 w-3" />
-                  <span>API key configurada y lista para usar</span>
+                  <span>Usa función backend preconfigurada con fallback</span>
                 </div>
                 <p className="text-sm text-gray-600">
                   Usa proxies profesionales y supera las protecciones de Airbnb
                 </p>
                 <p className="text-xs text-gray-500">
-                  Costo estimado: ~$0.01-0.05 por listing
+                  Si la función de Netlify no está disponible, te permitirá usar tu propia API key
                 </p>
               </div>
             </div>
