@@ -1,3 +1,4 @@
+
 import { ScrapingData } from '@/types/scraping';
 
 export interface ApifyScrapingResult {
@@ -83,7 +84,7 @@ const scrapeWithNetlifyFunction = async (
     throw new Error('Respuesta inválida de Apify: falta ID del run');
   }
 
-  return await processApifyRun(runData.data.id, runData.data.defaultDatasetId, onProgress, true);
+  return await processApifyRun(runData.data.id, runData.data.defaultDatasetId, url, onProgress, true);
 };
 
 // Función para usar la API directa de Apify
@@ -127,13 +128,14 @@ const scrapeWithDirectAPI = async (
   const runData = await startResponse.json();
   console.log('✅ Apify run started with direct API:', runData);
 
-  return await processApifyRun(runData.data.id, runData.data.defaultDatasetId, onProgress, false, apiKey);
+  return await processApifyRun(runData.data.id, runData.data.defaultDatasetId, url, onProgress, false, apiKey);
 };
 
 // Función común para procesar el run de Apify
 const processApifyRun = async (
   runId: string,
   datasetId: string,
+  originalUrl: string,
   onProgress: (progress: number, step: string) => void,
   useNetlifyFunction: boolean = true,
   apiKey?: string
