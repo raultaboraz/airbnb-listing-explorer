@@ -248,7 +248,7 @@ const processApifyRun = async (
 
   // 4. Convertir datos de Apify a nuestro formato
   const apifyData = results[0];
-  const scrapingData = convertApifyToScrapingData(apifyData, url);
+  const scrapingData = convertApifyToScrapingData(apifyData, originalUrl);
 
   onProgress(100, '¡Datos reales extraídos con Apify!');
 
