@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { UrlInput } from './UrlInput';
@@ -14,6 +13,8 @@ import { scrapeAirbnbListing } from '@/utils/advancedAirbnbScraper';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Info, Settings, RefreshCw, AlertTriangle } from 'lucide-react';
+import { ScrapingMethod } from './ScrapingMethodSelector';
+import { scrapeWithApify } from '@/utils/advancedAirbnbScraper';
 
 export const AirbnbScraper = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -24,6 +25,7 @@ export const AirbnbScraper = () => {
   const [extractionMethod, setExtractionMethod] = useState('');
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [currentUrl, setCurrentUrl] = useState('');
+  const [currentMethod, setCurrentMethod] = useState<ScrapingMethod>('internal');
   const { toast } = useToast();
 
   const resetData = () => {
@@ -37,22 +39,48 @@ export const AirbnbScraper = () => {
     setShowManualEntry(false);
   };
 
-  const extractData = async (url: string) => {
+  const extractData = async (url: string, method: ScrapingMethod, apifyKey?: string) => {
     resetData();
     setCurrentUrl(url);
+    setCurrentMethod(method);
     
     setIsLoading(true);
     setProgress(0);
     setCurrentStep('Iniciando extracción...');
     
     try {
-      console.log('🚀 Iniciando extracción de Airbnb para:', url);
+      console.log(`🚀 Iniciando extracción de Airbnb para: ${url} usando método: ${method}`);
       
-      const scrapingResult = await scrapeAirbnbListing(url, (progress, step) => {
-        console.log(`📊 Progreso: ${progress}% - ${step}`);
-        setProgress(progress);
-        setCurrentStep(step);
-      });
+      let scrapingResult;
+      
+      if (method === 'apify' && apifyKey) {
+        // Usar Apify para extracción premium
+        setCurrentStep('Conectando con Apify...');
+        const apifyResult = await scrapeWithApify(url, { apiKey: apifyKey }, (progress, step) => {
+          console.log(`📊 Apify - Progreso: ${progress}% - ${step}`);
+          setProgress(progress);
+          setCurrentStep(step);
+        });
+        
+        if (!apifyResult.success || !apifyResult.data) {
+          throw new Error('Falló la extracción con Apify');
+        }
+        
+        scrapingResult = {
+          success: true,
+          data: apifyResult.data,
+          isSimulated: false,
+          method: 'apify',
+          cost: apifyResult.creditsUsed
+        };
+      } else {
+        // Usar sistema interno
+        scrapingResult = await scrapeAirbnbListing(url, (progress, step) => {
+          console.log(`📊 Sistema interno - Progreso: ${progress}% - ${step}`);
+          setProgress(progress);
+          setCurrentStep(step);
+        });
+      }
 
       if (!scrapingResult.success || !scrapingResult.data) {
         throw new Error('Falló la extracción');
@@ -65,28 +93,34 @@ export const AirbnbScraper = () => {
       const translatedData = await translateListingData(scrapingResult.data);
 
       setProgress(100);
-      setCurrentStep(scrapingResult.isSimulated ? 
-        '¡Datos simulados generados!' : 
-        '¡Extracción real completada!'
+      setCurrentStep(method === 'apify' ? 
+        '¡Datos reales extraídos con Apify!' : 
+        (scrapingResult.isSimulated ? '¡Datos simulados generados!' : '¡Extracción real completada!')
       );
       
       setScrapingData(translatedData);
       setIsSimulated(scrapingResult.isSimulated || false);
-      setExtractionMethod(scrapingResult.method || 'unknown');
+      setExtractionMethod(scrapingResult.method || method);
       
       console.log('✅ Proceso completado:', {
         title: translatedData.title,
         images: translatedData.images.length,
         amenities: translatedData.amenities.length,
         price: translatedData.price,
-        method: scrapingResult.method,
-        isSimulated: scrapingResult.isSimulated
+        method: scrapingResult.method || method,
+        isSimulated: scrapingResult.isSimulated,
+        cost: scrapingResult.cost
       });
       
-      if (scrapingResult.isSimulated) {
+      if (method === 'apify') {
+        toast({
+          title: "✅ ¡Datos Reales Extraídos con Apify!",
+          description: `Extracción exitosa. Créditos usados: ${scrapingResult.cost || 'N/A'}`,
+        });
+      } else if (scrapingResult.isSimulated) {
         toast({
           title: "⚠️ Datos Simulados Generados",
-          description: "Airbnb bloquea la extracción automática. Se generaron datos de demostración. Usa la entrada manual para datos reales.",
+          description: "Airbnb bloquea la extracción automática. Se generaron datos de demostración. Usa Apify para datos reales.",
           variant: "destructive",
         });
       } else {
@@ -101,13 +135,25 @@ export const AirbnbScraper = () => {
       setProgress(0);
       setCurrentStep('');
       
-      toast({
-        title: "❌ Extracción Bloqueada",
-        description: "Airbnb bloquea todas las extracciones automáticas. Usa la entrada manual para datos reales.",
-        variant: "destructive",
-      });
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
       
-      setShowManualEntry(true);
+      if (method === 'apify') {
+        toast({
+          title: "❌ Error en Apify",
+          description: `Error al extraer con Apify: ${errorMessage}`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "❌ Extracción Bloqueada",
+          description: "Airbnb bloquea todas las extracciones automáticas. Usa Apify para datos reales.",
+          variant: "destructive",
+        });
+      }
+      
+      if (method !== 'apify') {
+        setShowManualEntry(true);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -143,13 +189,12 @@ export const AirbnbScraper = () => {
 
   return (
     <div className="space-y-6">
-      {/* Advertencia prominente */}
+      {/* Advertencia actualizada */}
       <Alert className="border-amber-200 bg-amber-50">
         <AlertTriangle className="h-4 w-4 text-amber-600" />
         <AlertDescription className="text-amber-800">
-          <strong>⚠️ IMPORTANTE:</strong> Airbnb bloquea todas las extracciones automáticas. 
-          La herramienta automática generará datos simulados de demostración. 
-          Para datos reales, usa la <strong>entrada manual</strong>.
+          <strong>⚠️ IMPORTANTE:</strong> Airbnb bloquea las extracciones automáticas gratuitas. 
+          Usa <strong>Apify Premium</strong> para datos reales o <strong>entrada manual</strong> como alternativa.
         </AlertDescription>
       </Alert>
 
@@ -195,21 +240,12 @@ export const AirbnbScraper = () => {
         </div>
       )}
       
-      {scrapingData && isSimulated && (
+      {scrapingData && isSimulated && currentMethod === 'internal' && (
         <Alert className="border-red-200 bg-red-50">
           <AlertTriangle className="h-4 w-4 text-red-600" />
           <AlertDescription className="text-red-800">
             <strong>🎭 DATOS SIMULADOS:</strong> Estos son datos de demostración completamente inventados. 
-            NO son del listing real. Para datos reales, usa la entrada manual.
-            <Button 
-              onClick={() => setShowManualEntry(true)}
-              variant="outline"
-              size="sm"
-              className="ml-2 border-red-300 hover:border-red-400"
-            >
-              <Settings className="h-4 w-4 mr-1" />
-              Entrada Manual
-            </Button>
+            NO son del listing real. Para datos reales, usa Apify Premium o entrada manual.
           </AlertDescription>
         </Alert>
       )}
@@ -218,8 +254,9 @@ export const AirbnbScraper = () => {
         <Alert className="border-green-200 bg-green-50">
           <RefreshCw className="h-4 w-4 text-green-600" />
           <AlertDescription className="text-green-800">
-            <strong>✅ Datos Reales:</strong> {extractionMethod === 'manual' ? 
-              'Introducidos manualmente' : 
+            <strong>✅ Datos Reales:</strong> {
+              extractionMethod === 'apify' ? 'Extraídos con Apify Premium' :
+              extractionMethod === 'manual' ? 'Introducidos manualmente' : 
               `Extraídos usando: ${extractionMethod}`
             }
           </AlertDescription>
@@ -244,7 +281,7 @@ export const AirbnbScraper = () => {
             className="border-blue-300 hover:border-blue-400"
           >
             <Settings className="h-4 w-4 mr-2" />
-            Usar Entrada Manual (Recomendado)
+            Usar Entrada Manual (Alternativa)
           </Button>
         </div>
       )}
