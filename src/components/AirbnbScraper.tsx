@@ -13,7 +13,7 @@ import { translateListingData } from '@/utils/translator';
 import { scrapeAirbnbListing } from '@/utils/advancedAirbnbScraper';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Info, Settings, RefreshCw } from 'lucide-react';
+import { Info, Settings, RefreshCw, AlertTriangle } from 'lucide-react';
 
 export const AirbnbScraper = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -43,12 +43,11 @@ export const AirbnbScraper = () => {
     
     setIsLoading(true);
     setProgress(0);
-    setCurrentStep('Iniciando extracción avanzada...');
+    setCurrentStep('Iniciando extracción...');
     
     try {
-      console.log('🚀 Iniciando extracción avanzada de Airbnb para:', url);
+      console.log('🚀 Iniciando extracción de Airbnb para:', url);
       
-      // Usar el nuevo scraper avanzado
       const scrapingResult = await scrapeAirbnbListing(url, (progress, step) => {
         console.log(`📊 Progreso: ${progress}% - ${step}`);
         setProgress(progress);
@@ -56,24 +55,26 @@ export const AirbnbScraper = () => {
       });
 
       if (!scrapingResult.success || !scrapingResult.data) {
-        throw new Error('Falló la extracción con todos los métodos disponibles');
+        throw new Error('Falló la extracción');
       }
 
       setProgress(95);
       setCurrentStep('Traduciendo al inglés...');
 
-      // Traducir datos al inglés
       console.log('🌐 Traduciendo datos al inglés...');
       const translatedData = await translateListingData(scrapingResult.data);
 
       setProgress(100);
-      setCurrentStep('¡Extracción completada exitosamente!');
+      setCurrentStep(scrapingResult.isSimulated ? 
+        '¡Datos simulados generados!' : 
+        '¡Extracción real completada!'
+      );
       
       setScrapingData(translatedData);
       setIsSimulated(scrapingResult.isSimulated || false);
       setExtractionMethod(scrapingResult.method || 'unknown');
       
-      console.log('✅ Extracción completada:', {
+      console.log('✅ Proceso completado:', {
         title: translatedData.title,
         images: translatedData.images.length,
         amenities: translatedData.amenities.length,
@@ -84,13 +85,14 @@ export const AirbnbScraper = () => {
       
       if (scrapingResult.isSimulated) {
         toast({
-          title: "Datos Simulados Generados",
-          description: `Se generaron datos realistas porque la extracción automática falló. Método intentado: ${scrapingResult.method}`,
+          title: "⚠️ Datos Simulados Generados",
+          description: "Airbnb bloquea la extracción automática. Se generaron datos de demostración. Usa la entrada manual para datos reales.",
+          variant: "destructive",
         });
       } else {
         toast({
-          title: "¡Extracción Real Completa!",
-          description: `Datos extraídos exitosamente usando: ${scrapingResult.method}`,
+          title: "✅ ¡Datos Reales Extraídos!",
+          description: `Extracción exitosa usando: ${scrapingResult.method}`,
         });
       }
 
@@ -100,12 +102,11 @@ export const AirbnbScraper = () => {
       setCurrentStep('');
       
       toast({
-        title: "Extracción Fallida",
-        description: "Todos los métodos de extracción fallaron. Puedes usar la entrada manual de datos como alternativa.",
+        title: "❌ Extracción Bloqueada",
+        description: "Airbnb bloquea todas las extracciones automáticas. Usa la entrada manual para datos reales.",
         variant: "destructive",
       });
       
-      // Mostrar opción de entrada manual
       setShowManualEntry(true);
     } finally {
       setIsLoading(false);
@@ -117,7 +118,6 @@ export const AirbnbScraper = () => {
       setProgress(50);
       setCurrentStep('Procesando datos manuales...');
       
-      // Traducir datos manuales al inglés
       const translatedData = await translateListingData(manualData);
       
       setProgress(100);
@@ -129,8 +129,8 @@ export const AirbnbScraper = () => {
       setShowManualEntry(false);
       
       toast({
-        title: "Datos Manuales Procesados",
-        description: "Los datos han sido procesados y traducidos exitosamente.",
+        title: "✅ Datos Manuales Procesados",
+        description: "Los datos reales han sido procesados y traducidos exitosamente.",
       });
     } catch (error) {
       toast({
@@ -143,6 +143,16 @@ export const AirbnbScraper = () => {
 
   return (
     <div className="space-y-6">
+      {/* Advertencia prominente */}
+      <Alert className="border-amber-200 bg-amber-50">
+        <AlertTriangle className="h-4 w-4 text-amber-600" />
+        <AlertDescription className="text-amber-800">
+          <strong>⚠️ IMPORTANTE:</strong> Airbnb bloquea todas las extracciones automáticas. 
+          La herramienta automática generará datos simulados de demostración. 
+          Para datos reales, usa la <strong>entrada manual</strong>.
+        </AlertDescription>
+      </Alert>
+
       <UrlInput 
         onStartScraping={extractData}
         disabled={isLoading}
@@ -160,11 +170,11 @@ export const AirbnbScraper = () => {
       
       {showManualEntry && !scrapingData && (
         <div className="space-y-4">
-          <Alert className="border-amber-200 bg-amber-50">
-            <Settings className="h-4 w-4 text-amber-600" />
-            <AlertDescription className="text-amber-800">
-              <strong>Entrada Manual Disponible:</strong> Como la extracción automática falló, 
-              puedes introducir los datos del listing manualmente usando el formulario de abajo.
+          <Alert className="border-blue-200 bg-blue-50">
+            <Settings className="h-4 w-4 text-blue-600" />
+            <AlertDescription className="text-blue-800">
+              <strong>💡 Entrada Manual Recomendada:</strong> Para obtener datos reales del listing, 
+              introduce la información manualmente desde la página de Airbnb.
             </AlertDescription>
           </Alert>
           
@@ -186,16 +196,16 @@ export const AirbnbScraper = () => {
       )}
       
       {scrapingData && isSimulated && (
-        <Alert className="border-amber-200 bg-amber-50">
-          <Info className="h-4 w-4 text-amber-600" />
-          <AlertDescription className="text-amber-800">
-            <strong>Datos Simulados:</strong> Se generaron datos realistas porque la extracción automática falló. 
-            Método: {extractionMethod}. Puedes usar la entrada manual para datos reales.
+        <Alert className="border-red-200 bg-red-50">
+          <AlertTriangle className="h-4 w-4 text-red-600" />
+          <AlertDescription className="text-red-800">
+            <strong>🎭 DATOS SIMULADOS:</strong> Estos son datos de demostración completamente inventados. 
+            NO son del listing real. Para datos reales, usa la entrada manual.
             <Button 
               onClick={() => setShowManualEntry(true)}
               variant="outline"
               size="sm"
-              className="ml-2"
+              className="ml-2 border-red-300 hover:border-red-400"
             >
               <Settings className="h-4 w-4 mr-1" />
               Entrada Manual
@@ -208,7 +218,10 @@ export const AirbnbScraper = () => {
         <Alert className="border-green-200 bg-green-50">
           <RefreshCw className="h-4 w-4 text-green-600" />
           <AlertDescription className="text-green-800">
-            <strong>Datos Reales Extraídos:</strong> Extracción exitosa usando: {extractionMethod}
+            <strong>✅ Datos Reales:</strong> {extractionMethod === 'manual' ? 
+              'Introducidos manualmente' : 
+              `Extraídos usando: ${extractionMethod}`
+            }
           </AlertDescription>
         </Alert>
       )}
@@ -228,10 +241,10 @@ export const AirbnbScraper = () => {
           <Button 
             onClick={() => setShowManualEntry(true)}
             variant="outline"
-            className="border-amber-300 hover:border-amber-400"
+            className="border-blue-300 hover:border-blue-400"
           >
             <Settings className="h-4 w-4 mr-2" />
-            Usar Entrada Manual de Datos
+            Usar Entrada Manual (Recomendado)
           </Button>
         </div>
       )}

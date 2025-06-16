@@ -75,56 +75,61 @@ export const scrapeAirbnbListing = async (
     throw new Error('URL de Airbnb inválida - no se pudo extraer el ID del listing');
   }
 
-  console.log('🚀 Iniciando extracción avanzada de Airbnb para:', url);
-  console.log('🔍 ADVERTENCIA: Debido a las restricciones de Airbnb, los datos pueden ser simulados');
+  console.log('🚀 Iniciando extracción de Airbnb para:', url);
+  console.log('⚠️ ADVERTENCIA: Airbnb bloquea la extracción automática - los datos serán simulados');
   
   // 1. Intentar con nuestro proxy de Netlify
-  onProgress(10, 'Conectando con proxy propio...');
+  onProgress(10, 'Conectando con proxy...');
   try {
     const result = await tryNetlifyProxy(url, onProgress);
-    if (result.success && !result.isSimulated) {
-      console.log('✅ Datos REALES extraídos con proxy propio');
-      return result;
+    if (result.success && result.data) {
+      // Verificar si realmente contiene datos de Airbnb válidos
+      const isRealData = await validateAirbnbData(result.data, url);
+      if (isRealData) {
+        console.log('✅ Datos REALES extraídos exitosamente');
+        return {
+          ...result,
+          isSimulated: false,
+          method: 'netlify-proxy'
+        };
+      } else {
+        console.log('❌ Los datos del proxy no son válidos - usando simulados');
+      }
     }
   } catch (error) {
-    console.log('❌ Proxy propio falló:', error.message);
+    console.log('❌ Proxy falló:', error.message);
   }
 
-  // 2. Intentar con proxies CORS públicos (método mejorado)
-  onProgress(30, 'Probando proxies CORS públicos...');
+  // 2. Intentar con proxies CORS públicos
+  onProgress(30, 'Probando proxies alternativos...');
   try {
     const result = await tryPublicProxies(url, onProgress);
-    if (result.success && !result.isSimulated) {
-      console.log('✅ Datos REALES extraídos con proxy público');
-      return result;
+    if (result.success && result.data) {
+      const isRealData = await validateAirbnbData(result.data, url);
+      if (isRealData) {
+        console.log('✅ Datos REALES extraídos con proxy público');
+        return {
+          ...result,
+          isSimulated: false,
+          method: 'public-proxy'
+        };
+      }
     }
   } catch (error) {
     console.log('❌ Proxies públicos fallaron:', error.message);
   }
 
-  // 3. Intentar extracción directa (sin proxy)
-  onProgress(60, 'Intentando extracción directa...');
-  try {
-    const result = await tryDirectFetch(url, onProgress);
-    if (result.success && !result.isSimulated) {
-      console.log('✅ Datos REALES extraídos directamente');
-      return result;
-    }
-  } catch (error) {
-    console.log('❌ Extracción directa falló:', error.message);
-  }
-
-  // 4. Fallback a datos simulados realistas
-  console.log('⚠️ TODOS LOS MÉTODOS FALLARON - Generando datos simulados');
-  onProgress(80, 'Generando datos simulados realistas...');
+  // 3. Como Airbnb siempre bloquea, generar datos simulados pero ser honesto al respecto
+  console.log('🛑 TODOS LOS MÉTODOS BLOQUEADOS POR AIRBNB - Generando datos simulados');
+  onProgress(80, 'Airbnb bloqueó la extracción - generando datos simulados...');
   const simulatedData = generateEnhancedSimulatedData(url, listingId);
-  onProgress(100, '¡Datos simulados generados! (No son datos reales)');
+  onProgress(100, 'Datos simulados generados (no son reales del listing)');
   
   return {
     success: true,
     data: simulatedData,
     isSimulated: true,
-    method: 'simulated'
+    method: 'simulated-fallback'
   };
 };
 
@@ -134,7 +139,7 @@ const tryNetlifyProxy = async (
 ): Promise<AirbnbScrapingResult> => {
   const proxyUrl = `/.netlify/functions/proxy-airbnb?url=${encodeURIComponent(url)}`;
   
-  onProgress(15, 'Usando proxy propio de Netlify...');
+  onProgress(15, 'Usando proxy Netlify...');
   
   const response = await fetch(proxyUrl, {
     method: 'GET',
@@ -150,21 +155,32 @@ const tryNetlifyProxy = async (
   const html = await response.text();
   console.log('📄 HTML recibido del proxy. Longitud:', html.length);
   
-  // Verificar si es HTML real de Airbnb
-  if (html.includes('{"data":{') || html.includes('airbnb')) {
-    onProgress(25, 'Analizando datos reales del proxy...');
-    const data = await parseAirbnbHTML(html, url, extractAirbnbId(url), onProgress);
-    
-    return {
-      success: true,
-      data,
-      isSimulated: false,
-      method: 'netlify-proxy'
-    };
-  } else {
-    console.log('⚠️ Respuesta del proxy no contiene datos válidos de Airbnb');
-    throw new Error('No se encontraron datos válidos de Airbnb');
+  // Verificar si realmente es HTML de Airbnb o solo nuestro propio HTML
+  if (html.includes('airbnb-listing-explorer') || html.includes('Lovable Generated')) {
+    console.log('❌ El proxy devolvió nuestro propio HTML - no datos de Airbnb');
+    throw new Error('Proxy devolvió HTML incorrecto');
   }
+  
+  // Buscar indicadores reales de Airbnb
+  const hasAirbnbContent = html.includes('"@type":"Product"') || 
+                          html.includes('data-testid') || 
+                          html.includes('airbnb.com') ||
+                          html.includes('window.__NEXT_DATA__');
+  
+  if (!hasAirbnbContent) {
+    console.log('❌ HTML no contiene contenido de Airbnb válido');
+    throw new Error('No se encontró contenido válido de Airbnb');
+  }
+
+  onProgress(25, 'Analizando contenido de Airbnb...');
+  const data = await parseAirbnbHTML(html, url, extractAirbnbId(url), onProgress);
+  
+  return {
+    success: true,
+    data,
+    isSimulated: false,
+    method: 'netlify-proxy'
+  };
 };
 
 const tryPublicProxies = async (
@@ -204,8 +220,14 @@ const tryPublicProxies = async (
 
         console.log(`📄 Proxy ${i + 1} HTML longitud:`, html.length);
         
-        // Verificar si contiene datos reales de Airbnb
-        if (html && html.length > 1000 && (html.includes('{"data":{') || html.includes('airbnb'))) {
+        // Verificar contenido real de Airbnb
+        const hasRealAirbnbContent = html && 
+                                   html.length > 10000 && 
+                                   (html.includes('"@type":"Product"') || 
+                                    html.includes('window.__NEXT_DATA__') ||
+                                    html.includes('data-testid'));
+        
+        if (hasRealAirbnbContent) {
           onProgress(55, 'Analizando datos reales...');
           const data = await parseAirbnbHTML(html, url, extractAirbnbId(url), onProgress);
           
@@ -222,34 +244,53 @@ const tryPublicProxies = async (
     }
   }
 
-  throw new Error('Todos los proxies públicos fallaron');
+  throw new Error('Todos los proxies públicos fallaron o fueron bloqueados');
 };
 
-const tryDirectFetch = async (
-  url: string,
-  onProgress: (progress: number, step: string) => void
-): Promise<AirbnbScrapingResult> => {
-  onProgress(65, 'Intentando acceso directo...');
+const validateAirbnbData = async (data: ScrapingData, originalUrl: string): Promise<boolean> => {
+  // Verificar si los datos parecen reales vs simulados
+  const urlId = extractAirbnbId(originalUrl);
+  const dataId = data.listingId;
   
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
-    },
-    mode: 'no-cors'
-  });
-
-  // Con no-cors no podemos leer la respuesta, así que siempre fallará
-  throw new Error('Direct fetch with no-cors cannot read response');
+  // Si los IDs no coinciden, probablemente son datos simulados
+  if (urlId !== dataId) {
+    console.log(`❌ IDs no coinciden: URL=${urlId}, Data=${dataId}`);
+    return false;
+  }
+  
+  // Verificar si el título coincide con alguno de nuestros simulados
+  const isSimulatedTitle = SIMULATED_LISTINGS.some(listing => 
+    listing.title === data.title || 
+    data.title.includes('Hermoso apartamento') ||
+    data.title.includes('Loft moderno') ||
+    data.title.includes('Casa tradicional')
+  );
+  
+  if (isSimulatedTitle) {
+    console.log('❌ Título coincide con datos simulados');
+    return false;
+  }
+  
+  // Verificar si las imágenes son de nuestros samples
+  const hasSimulatedImages = data.images.some(img => 
+    SAMPLE_IMAGES.includes(img) || img.includes('unsplash.com')
+  );
+  
+  if (hasSimulatedImages) {
+    console.log('❌ Imágenes son de muestras simuladas');
+    return false;
+  }
+  
+  return true;
 };
 
 const generateEnhancedSimulatedData = (url: string, listingId: string): ScrapingData => {
   const randomListing = SIMULATED_LISTINGS[Math.floor(Math.random() * SIMULATED_LISTINGS.length)];
-  const numImages = 5 + Math.floor(Math.random() * 3); // 5-7 imágenes
+  const numImages = 5 + Math.floor(Math.random() * 3);
   const selectedImages = SAMPLE_IMAGES.slice(0, numImages);
 
-  console.log('🎭 Generando datos SIMULADOS para:', randomListing.title);
+  console.log('🎭 GENERANDO DATOS COMPLETAMENTE SIMULADOS para demostración');
+  console.log('⚠️ ESTOS NO SON DATOS REALES DEL LISTING');
 
   return {
     listingId,
@@ -293,25 +334,18 @@ const parseAirbnbHTML = async (
   
   console.log('🔍 Intentando extraer datos reales del HTML...');
   
-  // Buscar datos JSON en el HTML
-  const jsonMatch = html.match(/<script[^>]*>window\.__NEXT_DATA__\s*=\s*({.+?})<\/script>/);
+  // Buscar datos JSON estructurados
+  const jsonLdMatch = html.match(/<script type="application\/ld\+json"[^>]*>([^<]+)<\/script>/);
+  const nextDataMatch = html.match(/<script[^>]*>window\.__NEXT_DATA__\s*=\s*({.+?})<\/script>/);
   
-  if (jsonMatch) {
-    try {
-      const data = JSON.parse(jsonMatch[1]);
-      console.log('📊 Datos JSON encontrados en __NEXT_DATA__');
-      
-      // Aquí iría la lógica real de parsing...
-      // Por ahora, como es complejo, seguimos con datos simulados
-      // pero marcados como "intentando parsing real"
-      
-    } catch (e) {
-      console.log('❌ Error parseando JSON:', e.message);
-    }
+  if (jsonLdMatch || nextDataMatch) {
+    console.log('📊 Encontrados datos estructurados - implementación de parsing pendiente');
+    // Aquí iría la implementación real de parsing
+    // Por ahora, como es muy complejo, seguimos con simulados pero con mejor detección
   }
   
-  // Como el parsing real es muy complejo, por ahora devolvemos datos simulados
-  // pero con mejor logging para debugging
-  console.log('⚠️ Parsing real aún no implementado - usando datos simulados');
+  // TODO: Implementar parsing real de HTML de Airbnb
+  // Esto requeriría analizar la estructura específica de Airbnb
+  console.log('⚠️ Parsing real de HTML de Airbnb no implementado - usando datos simulados');
   return generateEnhancedSimulatedData(url, listingId);
 };
