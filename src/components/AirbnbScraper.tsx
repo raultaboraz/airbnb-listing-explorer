@@ -10,12 +10,15 @@ import { ScrapingData } from '@/types/scraping';
 import { useToast } from '@/hooks/use-toast';
 import { translateListingData } from '@/utils/translator';
 import { scrapeAirbnbListing } from '@/utils/airbnbScraper';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Info } from 'lucide-react';
 
 export const AirbnbScraper = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState('');
   const [scrapingData, setScrapingData] = useState<ScrapingData | null>(null);
+  const [isSimulated, setIsSimulated] = useState(false);
   const { toast } = useToast();
 
   const resetData = () => {
@@ -24,10 +27,10 @@ export const AirbnbScraper = () => {
     setProgress(0);
     setCurrentStep('');
     setIsLoading(false);
+    setIsSimulated(false);
   };
 
   const extractData = async (url: string) => {
-    // Limpiar datos previos primero
     resetData();
     
     setIsLoading(true);
@@ -35,9 +38,9 @@ export const AirbnbScraper = () => {
     setCurrentStep('Iniciando extracción...');
     
     try {
-      console.log('🚀 Iniciando extracción real de datos de Airbnb para:', url);
+      console.log('🚀 Iniciando extracción mejorada de datos de Airbnb para:', url);
       
-      // Scraping real de Airbnb con múltiples proxies y retry logic
+      // Scraping mejorado con fallback a datos simulados
       const scrapingResult = await scrapeAirbnbListing(url, (progress, step) => {
         console.log(`📊 Progreso: ${progress}% - ${step}`);
         setProgress(progress);
@@ -59,19 +62,28 @@ export const AirbnbScraper = () => {
       setCurrentStep('¡Extracción completada exitosamente!');
       
       setScrapingData(translatedData);
+      setIsSimulated(scrapingResult.isSimulated || false);
       
       console.log('✅ Extracción completada:', {
         title: translatedData.title,
         images: translatedData.images.length,
         amenities: translatedData.amenities.length,
         price: translatedData.price,
-        description: translatedData.description.length + ' caracteres'
+        description: translatedData.description.length + ' caracteres',
+        isSimulated: scrapingResult.isSimulated
       });
       
-      toast({
-        title: "¡Extracción Completa!",
-        description: `Datos extraídos exitosamente para el listing ${translatedData.listingId} con ${translatedData.images.length} imágenes`,
-      });
+      if (scrapingResult.isSimulated) {
+        toast({
+          title: "Datos Simulados Generados",
+          description: `Se generaron datos realistas debido a problemas de conectividad. Los datos incluyen ${translatedData.images.length} imágenes de ejemplo.`,
+        });
+      } else {
+        toast({
+          title: "¡Extracción Real Completa!",
+          description: `Datos reales extraídos exitosamente para el listing ${translatedData.listingId} con ${translatedData.images.length} imágenes`,
+        });
+      }
 
     } catch (error) {
       console.error('❌ Error durante la extracción:', error);
@@ -80,7 +92,7 @@ export const AirbnbScraper = () => {
       
       toast({
         title: "Extracción Fallida",
-        description: error instanceof Error ? error.message : "Hubo un error extrayendo los datos del listing. Intenta de nuevo en unos minutos.",
+        description: error instanceof Error ? error.message : "Hubo un error extrayendo los datos del listing. Se generarán datos simulados automáticamente.",
         variant: "destructive",
       });
     } finally {
@@ -103,6 +115,16 @@ export const AirbnbScraper = () => {
           currentStep={currentStep}
           isComplete={progress === 100}
         />
+      )}
+      
+      {scrapingData && isSimulated && (
+        <Alert className="border-amber-200 bg-amber-50">
+          <Info className="h-4 w-4 text-amber-600" />
+          <AlertDescription className="text-amber-800">
+            <strong>Datos Simulados:</strong> Se generaron datos realistas debido a problemas de conectividad con Airbnb. 
+            Los datos son representativos pero no reales. Intenta de nuevo más tarde para obtener datos reales.
+          </AlertDescription>
+        </Alert>
       )}
       
       {scrapingData && (
