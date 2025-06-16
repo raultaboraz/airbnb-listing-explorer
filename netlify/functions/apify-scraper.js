@@ -2,6 +2,8 @@
 const https = require('https');
 
 exports.handler = async (event, context) => {
+  console.log('🚀 Apify scraper function called:', event.httpMethod);
+  
   // Solo permitir POST requests
   if (event.httpMethod !== 'POST') {
     return {
@@ -31,6 +33,7 @@ exports.handler = async (event, context) => {
   const apiKey = process.env.APIFY_API_KEY;
   
   if (!apiKey) {
+    console.error('❌ APIFY_API_KEY not found in environment');
     return {
       statusCode: 500,
       headers: {
@@ -44,7 +47,7 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    const { action, url, runId, datasetId } = JSON.parse(event.body);
+    const { action, url, runId, datasetId } = JSON.parse(event.body || '{}');
     
     console.log(`🚀 Apify action: ${action}`);
 
@@ -101,7 +104,7 @@ async function startApifyRun(url, apiKey) {
     }
   };
 
-  console.log('📤 Starting Apify run with payload:', runPayload);
+  console.log('📤 Starting Apify run with payload:', JSON.stringify(runPayload, null, 2));
 
   const response = await makeApifyRequest(
     `https://api.apify.com/v2/acts/${actorId}/runs`,
@@ -109,6 +112,8 @@ async function startApifyRun(url, apiKey) {
     apiKey,
     runPayload
   );
+
+  console.log('✅ Apify run started:', response);
 
   return {
     statusCode: 200,
@@ -129,6 +134,8 @@ async function checkRunStatus(runId, apiKey) {
     apiKey
   );
 
+  console.log('📊 Run status:', response.data?.status);
+
   return {
     statusCode: 200,
     headers: {
@@ -147,6 +154,8 @@ async function getResults(datasetId, apiKey) {
     'GET',
     apiKey
   );
+
+  console.log('📄 Results count:', response.length);
 
   return {
     statusCode: 200,
@@ -174,6 +183,8 @@ function makeApifyRequest(url, method, apiKey, body = null) {
       }
     };
 
+    console.log(`🌐 Making ${method} request to: ${url}`);
+
     const req = https.request(options, (res) => {
       let data = '';
       
@@ -182,20 +193,26 @@ function makeApifyRequest(url, method, apiKey, body = null) {
       });
       
       res.on('end', () => {
+        console.log(`📥 Response status: ${res.statusCode}`);
+        console.log(`📥 Response data length: ${data.length}`);
+        
         try {
           const jsonData = JSON.parse(data);
           if (res.statusCode >= 200 && res.statusCode < 300) {
             resolve(jsonData);
           } else {
+            console.error(`❌ Apify API error (${res.statusCode}):`, data);
             reject(new Error(`Apify API error (${res.statusCode}): ${data}`));
           }
         } catch (error) {
+          console.error('❌ Invalid JSON response:', data);
           reject(new Error(`Invalid JSON response: ${data}`));
         }
       });
     });
 
     req.on('error', (error) => {
+      console.error('❌ Request error:', error);
       reject(error);
     });
 
@@ -205,7 +222,9 @@ function makeApifyRequest(url, method, apiKey, body = null) {
     });
 
     if (body) {
-      req.write(JSON.stringify(body));
+      const bodyString = JSON.stringify(body);
+      console.log('📤 Request body:', bodyString);
+      req.write(bodyString);
     }
     
     req.end();

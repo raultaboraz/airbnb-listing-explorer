@@ -1,3 +1,4 @@
+
 import { ScrapingData } from '@/types/scraping';
 
 export interface ApifyScrapingResult {
@@ -26,6 +27,7 @@ export const scrapeWithApify = async (
     // 1. Iniciar el actor de Apify
     onProgress(20, 'Iniciando actor de Airbnb...');
     
+    console.log('📤 Enviando petición a función de Netlify...');
     const startResponse = await fetch('/.netlify/functions/apify-scraper', {
       method: 'POST',
       headers: {
@@ -37,17 +39,36 @@ export const scrapeWithApify = async (
       }),
     });
 
+    console.log('📥 Respuesta de función de Netlify:', startResponse.status, startResponse.statusText);
+
     if (!startResponse.ok) {
       const errorText = await startResponse.text();
-      console.error('❌ Error response from Netlify function:', errorText);
-      throw new Error(`Error al iniciar Apify (${startResponse.status}): ${errorText}`);
+      console.error('❌ Error response from Netlify function:', {
+        status: startResponse.status,
+        statusText: startResponse.statusText,
+        errorText
+      });
+      
+      if (startResponse.status === 404) {
+        throw new Error('La función de Netlify no está disponible. Verifique que el proyecto esté correctamente desplegado.');
+      } else if (startResponse.status === 500) {
+        throw new Error(`Error interno del servidor: ${errorText}`);
+      } else {
+        throw new Error(`Error al iniciar Apify (${startResponse.status}): ${errorText}`);
+      }
     }
 
     const runData = await startResponse.json();
+    console.log('✅ Respuesta de inicio de actor:', runData);
+    
+    if (!runData.data || !runData.data.id) {
+      throw new Error('Respuesta inválida de Apify: falta ID del run');
+    }
+
     const runId = runData.data.id;
     const datasetId = runData.data.defaultDatasetId;
 
-    console.log('✅ Actor iniciado con ID:', runId);
+    console.log('✅ Actor iniciado con ID:', runId, 'Dataset ID:', datasetId);
     onProgress(40, 'Ejecutando extracción...');
 
     // 2. Esperar a que termine la ejecución
