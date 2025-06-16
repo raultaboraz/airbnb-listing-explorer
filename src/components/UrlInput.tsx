@@ -22,7 +22,7 @@ export const UrlInput: React.FC<UrlInputProps> = ({
 }) => {
   const [url, setUrl] = useState('');
   const [isValid, setIsValid] = useState(false);
-  const [scrapingMethod, setScrapingMethod] = useState<ScrapingMethod>('internal');
+  const [scrapingMethod, setScrapingMethod] = useState<ScrapingMethod>('simulated');
   const [apifyKey, setApifyKey] = useState('');
 
   const validateUrl = (inputUrl: string) => {
@@ -37,10 +37,21 @@ export const UrlInput: React.FC<UrlInputProps> = ({
   };
 
   const canStartScraping = () => {
-    if (!isValid || disabled) return false;
+    if (disabled) return false;
+    
+    // Para datos simulados, no necesitamos URL válida
+    if (scrapingMethod === 'simulated') {
+      return url.length > 0; // Solo necesita alguna URL para generar datos
+    }
+    
+    // Para otros métodos necesitamos URL válida
+    if (!isValid) return false;
+    
+    // Para Apify necesitamos key válida
     if (scrapingMethod === 'apify') {
       return apifyKey && apifyKey.startsWith('apify_api_');
     }
+    
     return true;
   };
 
@@ -70,19 +81,26 @@ export const UrlInput: React.FC<UrlInputProps> = ({
                 onChange={handleUrlChange}
                 disabled={disabled}
                 className={`transition-colors ${
-                  url && !isValid ? 'border-red-300 focus:border-red-500' : ''
+                  url && !isValid && scrapingMethod !== 'simulated' ? 'border-red-300 focus:border-red-500' : ''
                 } ${
-                  isValid ? 'border-green-300 focus:border-green-500' : ''
+                  isValid || scrapingMethod === 'simulated' ? 'border-green-300 focus:border-green-500' : ''
                 }`}
               />
-              {url && !isValid && (
+              {url && !isValid && scrapingMethod !== 'simulated' && (
                 <p className="text-sm text-red-600">
                   Please enter a valid Airbnb listing URL
                 </p>
               )}
-              <p className="text-sm text-gray-500">
-                Enter the URL of an Airbnb listing (e.g., https://www.airbnb.com/rooms/12345678)
-              </p>
+              {scrapingMethod === 'simulated' && (
+                <p className="text-sm text-blue-600">
+                  Para datos simulados, cualquier URL sirve como referencia
+                </p>
+              )}
+              {scrapingMethod !== 'simulated' && (
+                <p className="text-sm text-gray-500">
+                  Enter the URL of an Airbnb listing (e.g., https://www.airbnb.com/rooms/12345678)
+                </p>
+              )}
             </div>
             
             <div className="flex space-x-3">
@@ -99,7 +117,11 @@ export const UrlInput: React.FC<UrlInputProps> = ({
                 ) : (
                   <>
                     <Download className="h-4 w-4" />
-                    <span>Start Extraction</span>
+                    <span>
+                      {scrapingMethod === 'simulated' ? 'Generar Datos' : 
+                       scrapingMethod === 'apify' ? 'Extraer con Apify' : 
+                       'Intentar Extracción'}
+                    </span>
                   </>
                 )}
               </Button>
