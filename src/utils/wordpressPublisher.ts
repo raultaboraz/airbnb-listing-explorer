@@ -130,7 +130,7 @@ export const publishToWordPress = async (
     console.log('🚀 Iniciando publicación en WordPress...');
     console.log('📋 Datos del listing:', {
       title: listingData.title,
-      price: listingData.price, // Should be clean number now
+      price: listingData.price,
       guests: listingData.guests,
       bedrooms: listingData.bedrooms,
       bathrooms: listingData.bathrooms,
@@ -163,8 +163,22 @@ export const publishToWordPress = async (
       console.log(`✅ ${uploadedImageIds.length} imágenes subidas`);
     }
 
-    // 5. Determine which endpoint to use
-    const usedEndpoint = connectionTest.homeyEndpoints?.includes('listing') ? 'listing' : 'posts';
+    // 5. Determine which endpoint to use - fix the 404 error by using correct endpoints
+    let usedEndpoint = 'posts'; // Default fallback
+    
+    if (connectionTest.homeyEndpoints && connectionTest.homeyEndpoints.length > 0) {
+      // Try different endpoint variations in order of preference
+      if (connectionTest.homeyEndpoints.includes('fave_property')) {
+        usedEndpoint = 'fave_property';
+      } else if (connectionTest.homeyEndpoints.includes('property')) {
+        usedEndpoint = 'property';
+      } else if (connectionTest.homeyEndpoints.includes('listings')) {
+        usedEndpoint = 'listings';
+      } else if (connectionTest.homeyEndpoints.includes('homey_listing')) {
+        usedEndpoint = 'homey_listing';
+      }
+    }
+    
     console.log(`📡 Usando endpoint: ${usedEndpoint}`);
 
     // 6. Create the listing post
@@ -191,7 +205,7 @@ export const publishToWordPress = async (
       `${siteUrl}/wp-json/wp/v2/posts` : 
       `${siteUrl}/wp-json/wp/v2/${usedEndpoint}`;
 
-    console.log('📝 Creando post con metadatos...');
+    console.log(`📝 Creando post en URL: ${createUrl}`);
     const createResponse = await fetch(createUrl, {
       method: 'POST',
       headers: {
@@ -203,7 +217,50 @@ export const publishToWordPress = async (
 
     if (!createResponse.ok) {
       const errorText = await createResponse.text();
-      throw new Error(`Error creating post: ${createResponse.status} - ${errorText}`);
+      console.error(`❌ Error ${createResponse.status} en URL: ${createUrl}`);
+      
+      // If the custom endpoint fails, try with standard posts
+      if (usedEndpoint !== 'posts') {
+        console.log('🔄 Intentando con endpoint estándar /posts...');
+        const fallbackUrl = `${siteUrl}/wp-json/wp/v2/posts`;
+        const fallbackResponse = await fetch(fallbackUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Basic ${auth}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(postData)
+        });
+        
+        if (!fallbackResponse.ok) {
+          const fallbackErrorText = await fallbackResponse.text();
+          throw new Error(`Error creating post: ${fallbackResponse.status} - ${fallbackErrorText}`);
+        }
+        
+        const createdPost = await fallbackResponse.json();
+        console.log('✅ Post creado con fallback:', createdPost.id);
+        usedEndpoint = 'posts'; // Update for subsequent operations
+        
+        // Continue with the rest of the process...
+        await forceAssignHomeyMetadata(siteUrl, auth, createdPost.id, homeyMetadata, usedEndpoint);
+        
+        if (uploadedImageIds.length > 0) {
+          await assignImagesToListing(siteUrl, auth, createdPost.id, uploadedImageIds, usedEndpoint);
+        }
+        
+        if (translatedData.amenities.length > 0) {
+          await assignHomeyAmenities(siteUrl, auth, createdPost.id, translatedData.amenities, usedEndpoint);
+        }
+        
+        return {
+          success: true,
+          postId: createdPost.id,
+          message: `Listing published successfully as standard post! Post ID: ${createdPost.id}`,
+          url: `${siteUrl}/${slug}/`
+        };
+      } else {
+        throw new Error(`Error creating post: ${createResponse.status} - ${errorText}`);
+      }
     }
 
     const createdPost = await createResponse.json();
