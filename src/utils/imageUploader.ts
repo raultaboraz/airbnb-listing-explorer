@@ -60,7 +60,7 @@ export const assignImagesToListing = async (
   usedEndpoint: string
 ): Promise<void> => {
   try {
-    console.log('🖼️ Asignando galería completa de Homey...');
+    console.log('🖼️ Asignando galería de Homey...');
     
     if (imageIds.length === 0) {
       console.log('⚠️ No hay imágenes para asignar');
@@ -70,63 +70,57 @@ export const assignImagesToListing = async (
     console.log(`📋 Asignando ${imageIds.length} imágenes al listing ID: ${postId}`);
     console.log('🔗 IDs de imágenes:', imageIds);
 
-    // Update the listing with gallery metadata using the correct endpoint
-    const updateUrl = usedEndpoint === 'posts' ? 
-      `${siteUrl}/wp-json/wp/v2/posts/${postId}` : 
-      `${siteUrl}/wp-json/wp/v2/${usedEndpoint}/${postId}`;
-
-    // Method 1: Update using the listing endpoint with meta fields
-    const galleryMetadata = {
-      homey_listings_images: imageIds,
-      fave_property_images: imageIds,
-      property_gallery: imageIds,
-      listing_gallery: imageIds,
-      _property_gallery: imageIds
-    };
-
-    console.log('📝 Actualizando metadatos de galería:', galleryMetadata);
-
-    const metaResponse = await fetch(updateUrl, {
+    // Method 1: Direct meta update using WordPress meta API
+    console.log('🔄 Método 1: Asignando homey_listings_images directamente...');
+    
+    const metaResponse = await fetch(`${siteUrl}/wp-json/wp/v2/posts/${postId}/meta`, {
       method: 'POST',
       headers: {
         'Authorization': `Basic ${auth}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        meta: galleryMetadata,
-        featured_media: imageIds[0]
+        key: 'homey_listings_images',
+        value: imageIds
       })
     });
 
     if (metaResponse.ok) {
-      console.log('✅ Metadatos de galería asignados correctamente');
+      console.log('✅ homey_listings_images asignado correctamente');
     } else {
       const errorText = await metaResponse.text();
-      console.log('⚠️ Error en asignación de metadatos:', metaResponse.status, errorText);
+      console.log('⚠️ Error asignando homey_listings_images:', metaResponse.status, errorText);
     }
 
-    // Method 2: Try using WordPress meta API directly
-    for (const [metaKey, metaValue] of Object.entries(galleryMetadata)) {
+    // Method 2: Try alternative field names
+    const alternativeFields = [
+      'fave_property_images',
+      'property_gallery',
+      'listing_gallery',
+      '_property_gallery'
+    ];
+
+    for (const fieldName of alternativeFields) {
       try {
-        const directMetaResponse = await fetch(`${siteUrl}/wp-json/wp/v2/posts/${postId}/meta`, {
+        const altResponse = await fetch(`${siteUrl}/wp-json/wp/v2/posts/${postId}/meta`, {
           method: 'POST',
           headers: {
             'Authorization': `Basic ${auth}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            key: metaKey,
-            value: metaValue
+            key: fieldName,
+            value: imageIds
           })
         });
 
-        if (directMetaResponse.ok) {
-          console.log(`✅ Meta directo ${metaKey} asignado`);
+        if (altResponse.ok) {
+          console.log(`✅ ${fieldName} asignado correctamente`);
         } else {
-          console.log(`❌ Error meta directo ${metaKey}:`, directMetaResponse.status);
+          console.log(`❌ Error asignando ${fieldName}:`, altResponse.status);
         }
       } catch (error) {
-        console.log(`❌ Error asignando meta ${metaKey}:`, error);
+        console.log(`❌ Error asignando ${fieldName}:`, error);
       }
     }
 

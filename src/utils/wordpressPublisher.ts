@@ -240,19 +240,15 @@ export const publishToWordPress = async (
       console.log('✅ Post estándar creado con metadatos de Homey:', createdPost.id);
     }
 
-    // 8. Force assign metadata after creation (important for Homey)
-    console.log('🔄 Forzando asignación de metadatos específicos...');
-    await forceAssignHomeyMetadata(siteUrl, auth, createdPost.id, homeyMetadata, usedEndpoint);
-
-    // 9. Assign images to listing gallery
+    // 8. Assign images to listing gallery AFTER creation
     await assignImagesToListing(siteUrl, auth, createdPost.id, uploadedImageIds, usedEndpoint);
 
-    // 10. Assign amenities
+    // 9. Assign amenities
     if (translatedData.amenities.length > 0) {
       await assignHomeyAmenities(siteUrl, auth, createdPost.id, translatedData.amenities, usedEndpoint);
     }
 
-    // 11. Generate correct listing URL
+    // 10. Generate correct listing URL
     let listingUrl: string;
     if (usedEndpoint === 'posts') {
       listingUrl = `${siteUrl}/${slug}/`;
