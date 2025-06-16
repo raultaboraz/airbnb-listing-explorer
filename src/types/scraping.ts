@@ -17,6 +17,7 @@ export interface ScrapingData {
   title: string;
   description: string;
   aboutSpace: string;
+  hostName: string;
   guests: number;
   bedrooms: number;
   bathrooms: number;

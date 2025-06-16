@@ -22,6 +22,7 @@ export const DataDisplay: React.FC<DataDisplayProps> = ({ data }) => {
           <CardContent className="space-y-4">
             <div>
               <h3 className="font-semibold text-lg text-gray-900">{data.title}</h3>
+              <p className="text-sm text-gray-500 mt-1">Anfitrión: {data.hostName}</p>
               <p className="text-gray-600 mt-2">{data.description}</p>
               {data.aboutSpace && (
                 <div className="mt-4">

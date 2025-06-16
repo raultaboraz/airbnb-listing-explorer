@@ -19,6 +19,7 @@ export const ManualDataEntry: React.FC<ManualDataEntryProps> = ({ onDataSubmit, 
     title: '',
     description: '',
     aboutSpace: '',
+    hostName: '',
     guests: 2,
     bedrooms: 1,
     bathrooms: 1,
@@ -39,6 +40,7 @@ export const ManualDataEntry: React.FC<ManualDataEntryProps> = ({ onDataSubmit, 
       title: formData.title,
       description: formData.description,
       aboutSpace: formData.aboutSpace,
+      hostName: formData.hostName,
       guests: formData.guests,
       bedrooms: formData.bedrooms,
       bathrooms: formData.bathrooms,
@@ -140,15 +142,28 @@ export const ManualDataEntry: React.FC<ManualDataEntryProps> = ({ onDataSubmit, 
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="title">Título</Label>
-            <Input
-              id="title"
-              value={formData.title}
-              onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-              placeholder="Hermoso apartamento en el centro"
-              required
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="title">Título</Label>
+              <Input
+                id="title"
+                value={formData.title}
+                onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                placeholder="Hermoso apartamento en el centro"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="hostName">Nombre del Anfitrión</Label>
+              <Input
+                id="hostName"
+                value={formData.hostName}
+                onChange={(e) => setFormData(prev => ({ ...prev, hostName: e.target.value }))}
+                placeholder="María García"
+                required
+              />
+            </div>
           </div>
 
           <div className="space-y-2">
