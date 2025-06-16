@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { UrlInput } from './UrlInput';
@@ -41,7 +40,7 @@ export const AirbnbScraper = () => {
     setShowManualEntry(false);
   };
 
-  const extractData = async (url: string, method: ScrapingMethod, apifyKey?: string) => {
+  const extractData = async (url: string, method: ScrapingMethod) => {
     resetData();
     setCurrentUrl(url);
     setCurrentMethod(method);
@@ -76,10 +75,10 @@ export const AirbnbScraper = () => {
           method: 'simulated'
         };
         
-      } else if (method === 'apify' && apifyKey) {
-        // Usar Apify para extracción premium
+      } else if (method === 'apify') {
+        // Usar Apify para extracción premium (sin necesidad de API key del usuario)
         setCurrentStep('Conectando con Apify...');
-        const apifyResult = await scrapeWithApify(url, { apiKey: apifyKey }, (progress, step) => {
+        const apifyResult = await scrapeWithApify(url, {}, (progress, step) => {
           console.log(`📊 Apify - Progreso: ${progress}% - ${step}`);
           setProgress(progress);
           setCurrentStep(step);

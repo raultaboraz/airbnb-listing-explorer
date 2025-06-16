@@ -87,13 +87,17 @@ export const ScrapingMethodSelector: React.FC<ScrapingMethodSelectorProps> = ({
                 <span className="font-medium">Apify Premium</span>
                 <Badge variant="default" className="bg-green-100 text-green-800">
                   <Zap className="h-3 w-3 mr-1" />
-                  Premium
+                  Preconfigurado
                 </Badge>
               </Label>
               <div className="mt-2 space-y-1">
                 <div className="flex items-center space-x-1 text-sm text-green-600">
                   <CheckCircle className="h-3 w-3" />
                   <span>Garantiza datos reales del listing</span>
+                </div>
+                <div className="flex items-center space-x-1 text-sm text-green-600">
+                  <CheckCircle className="h-3 w-3" />
+                  <span>API key configurada y lista para usar</span>
                 </div>
                 <p className="text-sm text-gray-600">
                   Usa proxies profesionales y supera las protecciones de Airbnb

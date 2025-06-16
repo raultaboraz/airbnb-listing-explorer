@@ -5,10 +5,9 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Download, Loader } from 'lucide-react';
 import { ScrapingMethodSelector, ScrapingMethod } from './ScrapingMethodSelector';
-import { ApifyKeyInput } from './ApifyKeyInput';
 
 interface UrlInputProps {
-  onStartScraping: (url: string, method: ScrapingMethod, apifyKey?: string) => void;
+  onStartScraping: (url: string, method: ScrapingMethod) => void;
   disabled: boolean;
   onReset: () => void;
   showReset: boolean;
@@ -23,7 +22,6 @@ export const UrlInput: React.FC<UrlInputProps> = ({
   const [url, setUrl] = useState('');
   const [isValid, setIsValid] = useState(false);
   const [scrapingMethod, setScrapingMethod] = useState<ScrapingMethod>('simulated');
-  const [apifyKey, setApifyKey] = useState('');
 
   const validateUrl = (inputUrl: string) => {
     const airbnbRegex = /^https:\/\/(www\.)?airbnb\.(com|ca|co\.uk|fr|de|es|it|com\.au|jp)\/rooms\/\d+/;
@@ -41,24 +39,17 @@ export const UrlInput: React.FC<UrlInputProps> = ({
     
     // Para datos simulados, no necesitamos URL válida
     if (scrapingMethod === 'simulated') {
-      return url.length > 0; // Solo necesita alguna URL para generar datos
+      return url.length > 0;
     }
     
     // Para otros métodos necesitamos URL válida
-    if (!isValid) return false;
-    
-    // Para Apify necesitamos key válida
-    if (scrapingMethod === 'apify') {
-      return apifyKey && apifyKey.startsWith('apify_api_');
-    }
-    
-    return true;
+    return isValid;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (canStartScraping()) {
-      onStartScraping(url, scrapingMethod, scrapingMethod === 'apify' ? apifyKey : undefined);
+      onStartScraping(url, scrapingMethod);
     }
   };
 
@@ -96,8 +87,13 @@ export const UrlInput: React.FC<UrlInputProps> = ({
                   Para datos simulados, cualquier URL sirve como referencia
                 </p>
               )}
-              {scrapingMethod !== 'simulated' && (
-                <p className="text-sm text-gray-500">
+              {scrapingMethod === 'apify' && (
+                <p className="text-sm text-green-600">
+                  Apify está preconfigurado y listo para extraer datos reales
+                </p>
+              )}
+              {scrapingMethod === 'internal' && (
+                <p className="text-sm text-amber-600">
                   Enter the URL of an Airbnb listing (e.g., https://www.airbnb.com/rooms/12345678)
                 </p>
               )}
@@ -146,14 +142,6 @@ export const UrlInput: React.FC<UrlInputProps> = ({
         onMethodChange={setScrapingMethod}
         disabled={disabled}
       />
-
-      {scrapingMethod === 'apify' && (
-        <ApifyKeyInput
-          apiKey={apifyKey}
-          onApiKeyChange={setApifyKey}
-          disabled={disabled}
-        />
-      )}
     </div>
   );
 };

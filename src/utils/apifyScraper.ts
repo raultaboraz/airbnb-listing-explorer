@@ -1,4 +1,3 @@
-
 import { ScrapingData } from '@/types/scraping';
 
 export interface ApifyScrapingResult {
@@ -10,71 +9,51 @@ export interface ApifyScrapingResult {
 }
 
 export interface ApifyConfig {
-  apiKey: string;
+  apiKey?: string; // Ya no necesario, se maneja en el backend
   actorId?: string;
 }
 
-// Actor más confiable y actualizado de Airbnb
-const DEFAULT_ACTOR_ID = 'curious_coder/airbnb-scraper';
-
+// Función principal que usa nuestra función de Netlify
 export const scrapeWithApify = async (
   url: string,
   config: ApifyConfig,
   onProgress: (progress: number, step: string) => void
 ): Promise<ApifyScrapingResult> => {
-  const { apiKey, actorId = DEFAULT_ACTOR_ID } = config;
-  
-  if (!apiKey || !apiKey.startsWith('apify_api_')) {
-    throw new Error('API key de Apify inválida. Debe comenzar con "apify_api_"');
-  }
-
-  console.log('🚀 Iniciando scraping con Apify para:', url);
+  console.log('🚀 Iniciando scraping con Apify (vía Netlify) para:', url);
   onProgress(10, 'Conectando con Apify...');
 
   try {
-    // 1. Iniciar el actor de Apify con configuración más robusta
+    // 1. Iniciar el actor de Apify
     onProgress(20, 'Iniciando actor de Airbnb...');
     
-    const runPayload = {
-      startUrls: [{ url }],
-      maxRequestRetries: 3,
-      maxConcurrency: 1,
-      includeReviews: true,
-      currency: "USD",
-      language: "en",
-      proxyConfiguration: { 
-        useApifyProxy: true,
-        apifyProxyGroups: ["RESIDENTIAL"] 
-      }
-    };
-
-    console.log('📤 Enviando payload a Apify:', runPayload);
-
-    const runResponse = await fetch(`https://api.apify.com/v2/acts/${actorId}/runs`, {
+    const startResponse = await fetch('/.netlify/functions/apify-scraper', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(runPayload),
+      body: JSON.stringify({
+        action: 'start_run',
+        url: url
+      }),
     });
 
-    if (!runResponse.ok) {
-      const errorText = await runResponse.text();
-      console.error('❌ Error response from Apify:', errorText);
-      throw new Error(`Error al iniciar Apify (${runResponse.status}): ${errorText}`);
+    if (!startResponse.ok) {
+      const errorText = await startResponse.text();
+      console.error('❌ Error response from Netlify function:', errorText);
+      throw new Error(`Error al iniciar Apify (${startResponse.status}): ${errorText}`);
     }
 
-    const runData = await runResponse.json();
+    const runData = await startResponse.json();
     const runId = runData.data.id;
+    const datasetId = runData.data.defaultDatasetId;
 
     console.log('✅ Actor iniciado con ID:', runId);
     onProgress(40, 'Ejecutando extracción...');
 
-    // 2. Esperar a que termine la ejecución con timeouts más largos
+    // 2. Esperar a que termine la ejecución
     let runStatus = 'RUNNING';
     let attempts = 0;
-    const maxAttempts = 60; // 10 minutos máximo (10s * 60)
+    const maxAttempts = 60; // 10 minutos máximo
 
     while (runStatus === 'RUNNING' && attempts < maxAttempts) {
       await new Promise(resolve => setTimeout(resolve, 10000)); // Esperar 10 segundos
@@ -83,8 +62,15 @@ export const scrapeWithApify = async (
       const progressPercent = 40 + Math.min(45, attempts * 0.75);
       onProgress(progressPercent, `Extrayendo datos... (${attempts * 10}s)`);
 
-      const statusResponse = await fetch(`https://api.apify.com/v2/actor-runs/${runId}`, {
-        headers: { 'Authorization': `Bearer ${apiKey}` }
+      const statusResponse = await fetch('/.netlify/functions/apify-scraper', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'check_status',
+          runId: runId
+        }),
       });
 
       if (statusResponse.ok) {
@@ -92,7 +78,6 @@ export const scrapeWithApify = async (
         runStatus = statusData.data.status;
         console.log(`📊 Estado del run: ${runStatus} (intento ${attempts})`);
         
-        // Si hay un error específico, logearlo
         if (statusData.data.statusMessage) {
           console.log('💬 Mensaje de estado:', statusData.data.statusMessage);
         }
@@ -108,12 +93,18 @@ export const scrapeWithApify = async (
 
     onProgress(85, 'Obteniendo resultados...');
 
-    // 3. Obtener los resultados con más detalles
-    const datasetId = runData.data.defaultDatasetId;
+    // 3. Obtener los resultados
     console.log('📊 Obteniendo datos del dataset:', datasetId);
     
-    const resultsResponse = await fetch(`https://api.apify.com/v2/datasets/${datasetId}/items?format=json&clean=true`, {
-      headers: { 'Authorization': `Bearer ${apiKey}` }
+    const resultsResponse = await fetch('/.netlify/functions/apify-scraper', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        action: 'get_results',
+        datasetId: datasetId
+      }),
     });
 
     if (!resultsResponse.ok) {
@@ -141,16 +132,8 @@ export const scrapeWithApify = async (
 
     onProgress(100, '¡Datos reales extraídos con Apify!');
 
-    // 5. Obtener información de costos
-    const runInfo = await fetch(`https://api.apify.com/v2/actor-runs/${runId}`, {
-      headers: { 'Authorization': `Bearer ${apiKey}` }
-    });
-    
-    let creditsUsed = 1; // Default
-    if (runInfo.ok) {
-      const runInfoData = await runInfo.json();
-      creditsUsed = runInfoData.data.stats?.computeUnits || 1;
-    }
+    // 5. Obtener información de costos (simplificado)
+    let creditsUsed = 1; // Default, se puede mejorar obteniendo datos reales del run
 
     return {
       success: true,
