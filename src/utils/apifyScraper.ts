@@ -1,4 +1,3 @@
-
 import { ScrapingData } from '@/types/scraping';
 
 export interface ApifyScrapingResult {
@@ -14,7 +13,7 @@ export interface ApifyConfig {
   actorId?: string;
 }
 
-// Función principal que usa Netlify function como proxy
+// Función principal que detecta automáticamente el método disponible
 export const scrapeWithApify = async (
   url: string,
   config: ApifyConfig,
@@ -27,7 +26,7 @@ export const scrapeWithApify = async (
   // Obtener API key de múltiples fuentes
   let apiKeyToUse = null;
   
-  // Primero intentar con config.apiKey si existe y no es null/undefined
+  // Primero intentar con config.apiKey si existe
   if (config.apiKey && config.apiKey.trim() !== '') {
     apiKeyToUse = config.apiKey;
     console.log('🔑 Usando API key del config');
@@ -54,10 +53,16 @@ export const scrapeWithApify = async (
     throw new Error('NO_VALID_API_KEY');
   }
 
-  // Usar Netlify function como proxy para evitar CORS
-  console.log('✅ API key válida encontrada, usando Netlify function como proxy');
-  onProgress(15, 'Conectando a través de Netlify function...');
-  return await scrapeWithNetlifyProxy(url, apiKeyToUse, onProgress);
+  // Intentar usar Netlify function primero, luego fallback a API directa
+  try {
+    console.log('🔄 Intentando usar Netlify function...');
+    onProgress(15, 'Conectando a través de Netlify function...');
+    return await scrapeWithNetlifyProxy(url, apiKeyToUse, onProgress);
+  } catch (netlifyError) {
+    console.warn('⚠️ Netlify function no disponible, usando API directa de Apify:', netlifyError);
+    onProgress(15, 'Conectando directamente con Apify...');
+    return await scrapeWithDirectApify(url, apiKeyToUse, onProgress);
+  }
 };
 
 // Función para usar Netlify function como proxy
@@ -66,7 +71,7 @@ const scrapeWithNetlifyProxy = async (
   apiKey: string,
   onProgress: (progress: number, step: string) => void
 ): Promise<ApifyScrapingResult> => {
-  onProgress(25, 'Iniciando actor de Airbnb...');
+  onProgress(25, 'Iniciando actor de Airbnb via Netlify...');
   console.log('📤 Starting Apify run via Netlify function');
 
   // 1. Iniciar el run
@@ -90,11 +95,56 @@ const scrapeWithNetlifyProxy = async (
   const runData = await startResponse.json();
   console.log('✅ Apify run started via Netlify:', runData);
 
-  return await processApifyRun(runData.data.id, runData.data.defaultDatasetId, url, onProgress, apiKey);
+  return await processApifyRunViaNetlify(runData.data.id, runData.data.defaultDatasetId, url, onProgress, apiKey);
 };
 
-// Función común para procesar el run de Apify
-const processApifyRun = async (
+// Función para usar API directa de Apify
+const scrapeWithDirectApify = async (
+  url: string,
+  apiKey: string,
+  onProgress: (progress: number, step: string) => void
+): Promise<ApifyScrapingResult> => {
+  onProgress(25, 'Iniciando actor de Airbnb directamente...');
+  console.log('📤 Starting Apify run directly');
+
+  const actorId = 'curious_coder/airbnb-scraper';
+  
+  const runPayload = {
+    startUrls: [{ url }],
+    maxRequestRetries: 3,
+    maxConcurrency: 1,
+    includeReviews: true,
+    currency: "USD",
+    language: "en",
+    proxyConfiguration: { 
+      useApifyProxy: true,
+      apifyProxyGroups: ["RESIDENTIAL"] 
+    }
+  };
+
+  // 1. Iniciar el run directamente con la API de Apify
+  const startResponse = await fetch(`https://api.apify.com/v2/acts/${actorId}/runs`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(runPayload),
+  });
+
+  if (!startResponse.ok) {
+    const errorText = await startResponse.text();
+    throw new Error(`Error al iniciar Apify directamente (${startResponse.status}): ${errorText}`);
+  }
+
+  const runData = await startResponse.json();
+  console.log('✅ Apify run started directly:', runData);
+
+  return await processApifyRunDirect(runData.data.id, runData.data.defaultDatasetId, url, onProgress, apiKey);
+};
+
+// Procesar run de Apify via Netlify
+const processApifyRunViaNetlify = async (
   runId: string,
   datasetId: string,
   originalUrl: string,
@@ -104,13 +154,13 @@ const processApifyRun = async (
   console.log('✅ Actor iniciado con ID:', runId, 'Dataset ID:', datasetId);
   onProgress(40, 'Ejecutando extracción...');
 
-  // 2. Esperar a que termine la ejecución
+  // Esperar a que termine la ejecución usando Netlify
   let runStatus = 'RUNNING';
   let attempts = 0;
-  const maxAttempts = 60; // 10 minutos máximo
+  const maxAttempts = 60;
 
   while (runStatus === 'RUNNING' && attempts < maxAttempts) {
-    await new Promise(resolve => setTimeout(resolve, 10000)); // Esperar 10 segundos
+    await new Promise(resolve => setTimeout(resolve, 10000));
     attempts++;
     
     const progressPercent = 40 + Math.min(45, attempts * 0.75);
@@ -146,9 +196,7 @@ const processApifyRun = async (
 
   onProgress(85, 'Obteniendo resultados...');
 
-  // 3. Obtener los resultados
-  console.log('📊 Obteniendo datos del dataset:', datasetId);
-  
+  // Obtener resultados via Netlify
   const resultsResponse = await fetch('/.netlify/functions/apify-scraper', {
     method: 'POST',
     headers: {
@@ -168,6 +216,83 @@ const processApifyRun = async (
 
   const results = await resultsResponse.json();
 
+  return processResults(results, originalUrl, onProgress);
+};
+
+// Procesar run de Apify directamente
+const processApifyRunDirect = async (
+  runId: string,
+  datasetId: string,
+  originalUrl: string,
+  onProgress: (progress: number, step: string) => void,
+  apiKey: string
+): Promise<ApifyScrapingResult> => {
+  console.log('✅ Actor iniciado con ID:', runId, 'Dataset ID:', datasetId);
+  onProgress(40, 'Ejecutando extracción...');
+
+  // Esperar a que termine la ejecución usando API directa
+  let runStatus = 'RUNNING';
+  let attempts = 0;
+  const maxAttempts = 60;
+
+  while (runStatus === 'RUNNING' && attempts < maxAttempts) {
+    await new Promise(resolve => setTimeout(resolve, 10000));
+    attempts++;
+    
+    const progressPercent = 40 + Math.min(45, attempts * 0.75);
+    onProgress(progressPercent, `Extrayendo datos... (${attempts * 10}s)`);
+
+    try {
+      const statusResponse = await fetch(`https://api.apify.com/v2/actor-runs/${runId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (statusResponse.ok) {
+        const statusData = await statusResponse.json();
+        runStatus = statusData.data.status;
+        console.log(`📊 Estado del run: ${runStatus} (intento ${attempts})`);
+      }
+    } catch (error) {
+      console.warn('⚠️ No se pudo verificar estado, continuando...');
+    }
+  }
+
+  if (runStatus !== 'SUCCEEDED') {
+    console.error('❌ Estado final del run:', runStatus);
+    throw new Error(`La extracción de Apify falló con estado: ${runStatus}. Tiempo transcurrido: ${attempts * 10}s`);
+  }
+
+  onProgress(85, 'Obteniendo resultados...');
+
+  // Obtener resultados directamente
+  const resultsResponse = await fetch(`https://api.apify.com/v2/datasets/${datasetId}/items?format=json&clean=true`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!resultsResponse.ok) {
+    const errorText = await resultsResponse.text();
+    throw new Error(`Error al obtener resultados (${resultsResponse.status}): ${errorText}`);
+  }
+
+  const results = await resultsResponse.json();
+
+  return processResults(results, originalUrl, onProgress);
+};
+
+// Función común para procesar resultados
+const processResults = async (
+  results: any,
+  originalUrl: string,
+  onProgress: (progress: number, step: string) => void
+): Promise<ApifyScrapingResult> => {
   console.log('📄 Resultados de Apify recibidos:', results.length, 'items');
   
   if (results.length > 0) {
@@ -180,7 +305,7 @@ const processApifyRun = async (
 
   onProgress(95, 'Procesando datos...');
 
-  // 4. Convertir datos de Apify a nuestro formato
+  // Convertir datos de Apify a nuestro formato
   const apifyData = results[0];
   const scrapingData = convertApifyToScrapingData(apifyData, originalUrl);
 
@@ -193,6 +318,7 @@ const processApifyRun = async (
   };
 };
 
+// Función para convertir datos de Apify a nuestro formato
 const convertApifyToScrapingData = (apifyData: any, originalUrl: string): ScrapingData => {
   console.log('🔄 Convirtiendo datos de Apify a formato interno');
   
