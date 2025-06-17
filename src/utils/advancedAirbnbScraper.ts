@@ -1,5 +1,5 @@
 import { ScrapingData } from '@/types/scraping';
-import { stealthScrapeAirbnb } from './stealthScraper';
+import { stealthScrapeAirbnb, generateEnhancedSimulatedData } from './stealthScraper';
 
 export interface AirbnbScrapingResult {
   success: boolean;

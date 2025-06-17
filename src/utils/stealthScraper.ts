@@ -1,4 +1,3 @@
-
 import { ScrapingData } from '@/types/scraping';
 
 export interface StealthScrapingResult {
@@ -431,7 +430,7 @@ const extractAirbnbId = (url: string): string => {
   return match ? match[1] : Math.random().toString(36).substr(2, 9);
 };
 
-const generateEnhancedSimulatedData = (url: string, listingId?: string, hints?: any): ScrapingData => {
+export const generateEnhancedSimulatedData = (url: string, listingId?: string, hints?: any): ScrapingData => {
   const id = listingId || extractAirbnbId(url);
   
   return {
