@@ -1,3 +1,4 @@
+
 import { ScrapingData } from '@/types/scraping';
 
 export interface ApifyScrapingResult {
@@ -23,19 +24,29 @@ export const scrapeWithApify = async (
   console.log('🔑 Config recibido:', { hasApiKey: !!config.apiKey, apiKeyLength: config.apiKey?.length });
   onProgress(10, 'Conectando con Apify...');
 
-  // Obtener API key de múltiples fuentes
-  let apiKeyToUse = config.apiKey;
+  // Obtener API key de múltiples fuentes - ARREGLADO
+  let apiKeyToUse = null;
   
+  // Primero intentar con config.apiKey si existe y no es null/undefined
+  if (config.apiKey && config.apiKey.trim() !== '') {
+    apiKeyToUse = config.apiKey;
+    console.log('🔑 Usando API key del config');
+  }
+  
+  // Si no hay en config, buscar en localStorage
   if (!apiKeyToUse) {
-    apiKeyToUse = localStorage.getItem('apify_api_key');
-    console.log('🔍 API key obtenida de localStorage:', { hasKey: !!apiKeyToUse, length: apiKeyToUse?.length });
+    const storageKey = localStorage.getItem('apify_api_key');
+    if (storageKey && storageKey.trim() !== '') {
+      apiKeyToUse = storageKey;
+      console.log('🔑 Usando API key de localStorage');
+    }
   }
 
   console.log('🔍 API key final para validar:', { 
     hasKey: !!apiKeyToUse, 
     length: apiKeyToUse?.length,
     starts: apiKeyToUse?.substring(0, 10),
-    full: apiKeyToUse // Para debug temporal
+    isValid: apiKeyToUse ? validateApifyKey(apiKeyToUse) : false
   });
   
   if (apiKeyToUse && validateApifyKey(apiKeyToUse)) {

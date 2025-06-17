@@ -93,18 +93,32 @@ export const AirbnbScraper = () => {
         };
         
       } else if (method === 'apify') {
-        // Usar Apify con manejo de API key guardada
+        // Usar Apify con manejo de API key guardada - ARREGLADO
         setCurrentStep('Conectando con Apify...');
         
-        const apiKeyToUse = tempApiKey || localStorage.getItem('apify_api_key');
+        // Obtener la API key de la forma más directa posible
+        let apiKeyToUse = tempApiKey;
+        if (!apiKeyToUse || apiKeyToUse.trim() === '') {
+          apiKeyToUse = localStorage.getItem('apify_api_key');
+        }
+        
+        console.log('🔑 API key que se va a usar:', { 
+          fromTemp: !!tempApiKey, 
+          fromStorage: !!localStorage.getItem('apify_api_key'),
+          final: !!apiKeyToUse,
+          length: apiKeyToUse?.length 
+        });
         
         try {
-          console.log('🔑 Intentando con API key:', { hasKey: !!apiKeyToUse, length: apiKeyToUse?.length });
-          const apifyResult = await scrapeWithApify(url, { apiKey: apiKeyToUse }, (progress, step) => {
-            console.log(`📊 Apify - Progreso: ${progress}% - ${step}`);
-            setProgress(progress);
-            setCurrentStep(step);
-          });
+          const apifyResult = await scrapeWithApify(
+            url, 
+            { apiKey: apiKeyToUse || '' }, // Asegurar que no sea null
+            (progress, step) => {
+              console.log(`📊 Apify - Progreso: ${progress}% - ${step}`);
+              setProgress(progress);
+              setCurrentStep(step);
+            }
+          );
           
           if (!apifyResult.success || !apifyResult.data) {
             throw new Error('Falló la extracción con Apify');
@@ -121,13 +135,11 @@ export const AirbnbScraper = () => {
           const errorMessage = apifyError instanceof Error ? apifyError.message : 'Error desconocido';
           console.error('❌ Error específico de Apify:', errorMessage);
           
-          if (errorMessage.includes('NETLIFY_FUNCTION_NOT_AVAILABLE') && !apiKeyToUse) {
-            console.log('🔄 Ofreciendo fallback de API key...');
+          if (errorMessage.includes('NO_VALID_API_KEY')) {
+            console.log('🔄 No hay API key válida, mostrando fallback...');
             setIsLoading(false);
             setShowApifyKeyFallback(true);
             return;
-          } else if (errorMessage.includes('NETLIFY_FUNCTION_NOT_AVAILABLE') && apiKeyToUse) {
-            throw new Error('Error al conectar con Apify. Comprueba tu API key.');
           }
           
           throw apifyError;
