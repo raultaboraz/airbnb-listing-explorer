@@ -84,11 +84,23 @@ export const AirbnbScraper = () => {
         };
         
       } else if (method === 'apify') {
-        // Usar Apify con manejo de fallback
+        // Usar Apify con manejo de API key guardada
         setCurrentStep('Conectando con Apify...');
+        
+        // Primero intentar con API key guardada
+        let apiKeyToUse = tempApiKey;
+        if (!apiKeyToUse) {
+          const savedKey = localStorage.getItem('apify_api_key');
+          if (savedKey && savedKey.startsWith('apify_api_') && savedKey.length > 20) {
+            console.log('🔑 Usando API key guardada');
+            apiKeyToUse = savedKey;
+            setTempApiKey(savedKey); // Guardar en estado temporal también
+          }
+        }
+        
         try {
-          console.log('🔑 Intentando con tempApiKey:', { hasTempKey: !!tempApiKey, length: tempApiKey?.length });
-          const apifyResult = await scrapeWithApify(url, { apiKey: tempApiKey }, (progress, step) => {
+          console.log('🔑 Intentando con API key:', { hasKey: !!apiKeyToUse, length: apiKeyToUse?.length });
+          const apifyResult = await scrapeWithApify(url, { apiKey: apiKeyToUse }, (progress, step) => {
             console.log(`📊 Apify - Progreso: ${progress}% - ${step}`);
             setProgress(progress);
             setCurrentStep(step);
@@ -109,7 +121,7 @@ export const AirbnbScraper = () => {
           const errorMessage = apifyError instanceof Error ? apifyError.message : 'Error desconocido';
           console.error('❌ Error específico de Apify:', errorMessage);
           
-          if (errorMessage.includes('NETLIFY_FUNCTION_NOT_AVAILABLE')) {
+          if (errorMessage.includes('NETLIFY_FUNCTION_NOT_AVAILABLE') || !apiKeyToUse) {
             console.log('🔄 Ofreciendo fallback de API key...');
             setIsLoading(false);
             setShowApifyKeyFallback(true);

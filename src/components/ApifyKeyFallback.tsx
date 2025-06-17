@@ -1,10 +1,10 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Key, ExternalLink, AlertTriangle } from 'lucide-react';
+import { Key, ExternalLink, AlertTriangle, CheckCircle } from 'lucide-react';
 
 interface ApifyKeyFallbackProps {
   onApiKeyProvided: (apiKey: string) => void;
@@ -17,6 +17,16 @@ export const ApifyKeyFallback: React.FC<ApifyKeyFallbackProps> = ({
 }) => {
   const [apiKey, setApiKey] = useState('');
   const [isValid, setIsValid] = useState(false);
+
+  useEffect(() => {
+    // Intentar cargar API key guardada automáticamente
+    const savedKey = localStorage.getItem('apify_api_key');
+    if (savedKey && validateApiKey(savedKey)) {
+      console.log('🔑 API key guardada encontrada, usando automáticamente...');
+      onApiKeyProvided(savedKey);
+      return;
+    }
+  }, [onApiKeyProvided]);
 
   const validateApiKey = (key: string) => {
     const valid = key.startsWith('apify_api_') && key.length > 20;
@@ -33,9 +43,20 @@ export const ApifyKeyFallback: React.FC<ApifyKeyFallbackProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (isValid) {
+      // Guardar la API key para próximas veces
+      localStorage.setItem('apify_api_key', apiKey);
       onApiKeyProvided(apiKey);
     }
   };
+
+  const handleUseSavedKey = () => {
+    const savedKey = localStorage.getItem('apify_api_key');
+    if (savedKey) {
+      onApiKeyProvided(savedKey);
+    }
+  };
+
+  const savedKey = localStorage.getItem('apify_api_key');
 
   return (
     <Card className="border-amber-200 bg-amber-50">
@@ -49,15 +70,43 @@ export const ApifyKeyFallback: React.FC<ApifyKeyFallbackProps> = ({
         <Alert className="border-blue-200 bg-blue-50">
           <Key className="h-4 w-4 text-blue-600" />
           <AlertDescription className="text-blue-800">
-            <strong>Solución Temporal:</strong> Para usar Apify mientras se despliega la función de Netlify, 
-            proporciona tu API key de Apify. Esta se usará solo para esta sesión y no se almacenará.
+            <strong>Solución:</strong> Usa tu API key de Apify directamente. 
+            {savedKey && " Se detectó una API key guardada anteriormente."}
           </AlertDescription>
         </Alert>
+
+        {savedKey && (
+          <div className="space-y-3">
+            <Alert className="border-green-200 bg-green-50">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <AlertDescription className="text-green-800">
+                <strong>API Key Detectada:</strong> Se encontró una API key guardada localmente.
+              </AlertDescription>
+            </Alert>
+            
+            <div className="flex space-x-3">
+              <Button 
+                onClick={handleUseSavedKey}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                <CheckCircle className="h-4 w-4 mr-2" />
+                Usar API Key Guardada
+              </Button>
+              <Button 
+                onClick={() => localStorage.removeItem('apify_api_key')}
+                variant="outline"
+                className="text-red-600 hover:text-red-700"
+              >
+                Eliminar Key Guardada
+              </Button>
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <label htmlFor="apify-key" className="text-sm font-medium text-gray-700">
-              API Key de Apify
+              {savedKey ? "O introduce una nueva API Key" : "API Key de Apify"}
             </label>
             <Input
               id="apify-key"
@@ -85,7 +134,7 @@ export const ApifyKeyFallback: React.FC<ApifyKeyFallbackProps> = ({
               className="bg-blue-600 hover:bg-blue-700"
             >
               <Key className="h-4 w-4 mr-2" />
-              Usar API Key
+              Usar Nueva API Key
             </Button>
             <Button 
               type="button" 
