@@ -13,7 +13,7 @@ export interface ApifyConfig {
   actorId?: string;
 }
 
-// Función principal que intenta usar Netlify primero, luego fallback a API directa
+// Función principal que prioriza API directa si hay API key disponible
 export const scrapeWithApify = async (
   url: string,
   config: ApifyConfig,
@@ -23,21 +23,21 @@ export const scrapeWithApify = async (
   console.log('🔑 Config recibido:', { hasApiKey: !!config.apiKey, apiKeyLength: config.apiKey?.length });
   onProgress(10, 'Conectando con Apify...');
 
-  // Primero intentar con función de Netlify
+  // Priorizar API directa si tenemos API key
+  const apiKeyToUse = config.apiKey || localStorage.getItem('apify_api_key');
+  
+  if (apiKeyToUse && validateApifyKey(apiKeyToUse)) {
+    console.log('✅ API key válida encontrada, usando API directa');
+    onProgress(15, 'Conectando directamente con Apify...');
+    return await scrapeWithDirectAPI(url, apiKeyToUse, onProgress);
+  }
+
+  // Solo si no hay API key, intentar con función de Netlify
   try {
     return await scrapeWithNetlifyFunction(url, onProgress);
   } catch (netlifyError) {
-    console.warn('⚠️ Función de Netlify no disponible, intentando con API directa...', netlifyError);
-    
-    // Si falla Netlify, usar API directa si tenemos API key
-    if (config.apiKey && validateApifyKey(config.apiKey)) {
-      console.log('✅ API key válida encontrada, usando API directa');
-      onProgress(15, 'Conectando directamente con Apify...');
-      return await scrapeWithDirectAPI(url, config.apiKey, onProgress);
-    } else {
-      console.error('❌ No hay API key válida disponible');
-      throw new Error('NETLIFY_FUNCTION_NOT_AVAILABLE');
-    }
+    console.warn('⚠️ Función de Netlify no disponible y no hay API key válida', netlifyError);
+    throw new Error('NETLIFY_FUNCTION_NOT_AVAILABLE');
   }
 };
 
@@ -70,13 +70,7 @@ const scrapeWithNetlifyFunction = async (
       errorText
     });
     
-    if (startResponse.status === 404) {
-      throw new Error('NETLIFY_FUNCTION_NOT_AVAILABLE');
-    } else if (startResponse.status === 500) {
-      throw new Error(`Error interno del servidor: ${errorText}`);
-    } else {
-      throw new Error(`Error al iniciar Apify (${startResponse.status}): ${errorText}`);
-    }
+    throw new Error('NETLIFY_FUNCTION_NOT_AVAILABLE');
   }
 
   const runData = await startResponse.json();

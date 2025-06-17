@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { UrlInput } from './UrlInput';
 import { ProgressTracker } from './ProgressTracker';
@@ -13,7 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { translateListingData } from '@/utils/translator';
 import { scrapeAirbnbListing } from '@/utils/advancedAirbnbScraper';
 import { scrapeVrboListing } from '@/utils/vrboScraper';
-import { scrapeWithApify } from '@/utils/apifyScraper';
+import { scrapeWithApify, validateApifyKey } from '@/utils/apifyScraper';
 import { generateSimulatedData } from '@/utils/simulatedDataGenerator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -35,6 +35,15 @@ export const AirbnbScraper = () => {
   const [tempApiKey, setTempApiKey] = useState('');
   const { toast } = useToast();
 
+  // Comprobar si hay una API key guardada al cargar
+  useEffect(() => {
+    const savedKey = localStorage.getItem('apify_api_key');
+    if (savedKey && validateApifyKey(savedKey)) {
+      console.log('🔑 API key guardada encontrada automáticamente');
+      setTempApiKey(savedKey);
+    }
+  }, []);
+
   const resetData = () => {
     console.log('🧹 Limpiando datos previos...');
     setScrapingData(null);
@@ -45,7 +54,7 @@ export const AirbnbScraper = () => {
     setExtractionMethod('');
     setShowManualEntry(false);
     setShowApifyKeyFallback(false);
-    setTempApiKey('');
+    // No resetear tempApiKey para mantener la key entre extracciones
   };
 
   const extractData = async (url: string, method: ScrapingMethod) => {
@@ -87,16 +96,7 @@ export const AirbnbScraper = () => {
         // Usar Apify con manejo de API key guardada
         setCurrentStep('Conectando con Apify...');
         
-        // Primero intentar con API key guardada
-        let apiKeyToUse = tempApiKey;
-        if (!apiKeyToUse) {
-          const savedKey = localStorage.getItem('apify_api_key');
-          if (savedKey && savedKey.startsWith('apify_api_') && savedKey.length > 20) {
-            console.log('🔑 Usando API key guardada');
-            apiKeyToUse = savedKey;
-            setTempApiKey(savedKey); // Guardar en estado temporal también
-          }
-        }
+        const apiKeyToUse = tempApiKey || localStorage.getItem('apify_api_key');
         
         try {
           console.log('🔑 Intentando con API key:', { hasKey: !!apiKeyToUse, length: apiKeyToUse?.length });
@@ -121,11 +121,13 @@ export const AirbnbScraper = () => {
           const errorMessage = apifyError instanceof Error ? apifyError.message : 'Error desconocido';
           console.error('❌ Error específico de Apify:', errorMessage);
           
-          if (errorMessage.includes('NETLIFY_FUNCTION_NOT_AVAILABLE') || !apiKeyToUse) {
+          if (errorMessage.includes('NETLIFY_FUNCTION_NOT_AVAILABLE') && !apiKeyToUse) {
             console.log('🔄 Ofreciendo fallback de API key...');
             setIsLoading(false);
             setShowApifyKeyFallback(true);
             return;
+          } else if (errorMessage.includes('NETLIFY_FUNCTION_NOT_AVAILABLE') && apiKeyToUse) {
+            throw new Error('Error al conectar con Apify. Comprueba tu API key.');
           }
           
           throw apifyError;
