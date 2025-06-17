@@ -11,6 +11,7 @@ import { ScrapingData } from '@/types/scraping';
 import { useToast } from '@/hooks/use-toast';
 import { translateListingData } from '@/utils/translator';
 import { scrapeAirbnbListing } from '@/utils/advancedAirbnbScraper';
+import { scrapeVrboListing } from '@/utils/vrboScraper';
 import { scrapeWithApify } from '@/utils/apifyScraper';
 import { generateSimulatedData } from '@/utils/simulatedDataGenerator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -115,8 +116,17 @@ export const AirbnbScraper = () => {
           throw apifyError;
         }
         
+      } else if (method === 'vrbo') {
+        // Usar sistema VRBO
+        setCurrentStep('Iniciando scraping de VRBO...');
+        scrapingResult = await scrapeVrboListing(url, (progress, step) => {
+          console.log(`📊 Sistema VRBO - Progreso: ${progress}% - ${step}`);
+          setProgress(progress);
+          setCurrentStep(step);
+        });
+        
       } else {
-        // Usar sistema interno (experimental)
+        // Usar sistema interno de Airbnb (experimental)
         setCurrentStep('Iniciando scraping interno...');
         scrapingResult = await scrapeAirbnbListing(url, (progress, step) => {
           console.log(`📊 Sistema interno - Progreso: ${progress}% - ${step}`);
@@ -142,6 +152,7 @@ export const AirbnbScraper = () => {
       setCurrentStep(
         method === 'simulated' ? '¡Datos simulados generados!' :
         method === 'apify' ? '¡Datos reales extraídos con Apify!' : 
+        method === 'vrbo' ? (scrapingResult.isSimulated ? '¡Datos simulados generados!' : '¡Extracción de VRBO completada!') :
         (scrapingResult.isSimulated ? '¡Datos simulados generados!' : '¡Extracción real completada!')
       );
       
@@ -169,6 +180,19 @@ export const AirbnbScraper = () => {
           title: "✅ ¡Datos Reales Extraídos con Apify!",
           description: `Extracción exitosa. Créditos usados: ${scrapingResult.cost || 'N/A'}`,
         });
+      } else if (method === 'vrbo') {
+        if (scrapingResult.isSimulated) {
+          toast({
+            title: "⚠️ Datos Simulados Generados",
+            description: "VRBO bloquea la extracción automática. Se generaron datos de demostración.",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "✅ ¡Datos Reales de VRBO Extraídos!",
+            description: `Extracción exitosa usando: ${scrapingResult.method}`,
+          });
+        }
       } else if (scrapingResult.isSimulated) {
         toast({
           title: "⚠️ Datos Simulados Generados",
@@ -201,6 +225,12 @@ export const AirbnbScraper = () => {
           description: `Error al generar datos simulados: ${errorMessage}`,
           variant: "destructive",
         });
+      } else if (method === 'vrbo') {
+        toast({
+          title: "❌ Extracción VRBO Bloqueada",
+          description: "VRBO bloquea todas las extracciones automáticas. Se muestran datos simulados para pruebas.",
+          variant: "destructive",
+        });
       } else {
         toast({
           title: "❌ Extracción Bloqueada",
@@ -209,7 +239,7 @@ export const AirbnbScraper = () => {
         });
       }
       
-      if (method === 'internal') {
+      if (method === 'internal' || method === 'vrbo') {
         setShowManualEntry(true);
       }
     } finally {
@@ -264,10 +294,11 @@ export const AirbnbScraper = () => {
       <Alert className="border-blue-200 bg-blue-50">
         <Info className="h-4 w-4 text-blue-600" />
         <AlertDescription className="text-blue-800">
-          <strong>💡 3 Métodos Disponibles:</strong> 
+          <strong>💡 4 Métodos Disponibles:</strong> 
           <br />• <strong>Datos Simulados:</strong> Genera datos de demostración instantáneos
-          <br />• <strong>Scraping Interno:</strong> Intenta extraer datos reales (puede fallar)
-          <br />• <strong>Apify Premium:</strong> Garantiza datos reales con proxies profesionales
+          <br />• <strong>Scraping Interno (Airbnb):</strong> Intenta extraer datos reales (puede fallar)
+          <br />• <strong>Apify Premium:</strong> Garantiza datos reales de Airbnb con proxies profesionales
+          <br />• <strong>Sistema VRBO:</strong> Extrae datos de propiedades VRBO/HomeAway
         </AlertDescription>
       </Alert>
 
@@ -308,7 +339,7 @@ export const AirbnbScraper = () => {
                 <Settings className="h-4 w-4 text-blue-600" />
                 <AlertDescription className="text-blue-800">
                   <strong>💡 Entrada Manual Recomendada:</strong> Para obtener datos reales del listing, 
-                  introduce la información manualmente desde la página de Airbnb.
+                  introduce la información manualmente desde la página de {currentMethod === 'vrbo' ? 'VRBO' : 'Airbnb'}.
                 </AlertDescription>
               </Alert>
               
@@ -339,11 +370,11 @@ export const AirbnbScraper = () => {
             </Alert>
           )}
           
-          {scrapingData && isSimulated && currentMethod === 'internal' && (
+          {scrapingData && isSimulated && (currentMethod === 'internal' || currentMethod === 'vrbo') && (
             <Alert className="border-red-200 bg-red-50">
               <AlertTriangle className="h-4 w-4 text-red-600" />
               <AlertDescription className="text-red-800">
-                <strong>🎭 DATOS SIMULADOS (Fallback):</strong> El scraping interno fue bloqueado, 
+                <strong>🎭 DATOS SIMULADOS (Fallback):</strong> El scraping de {currentMethod === 'vrbo' ? 'VRBO' : 'Airbnb'} fue bloqueado, 
                 se generaron datos de demostración. Para datos reales, usa Apify Premium.
               </AlertDescription>
             </Alert>
@@ -356,6 +387,7 @@ export const AirbnbScraper = () => {
                 <strong>✅ Datos Reales:</strong> {
                   extractionMethod === 'apify' ? 'Extraídos con Apify Premium' :
                   extractionMethod === 'manual' ? 'Introducidos manualmente' : 
+                  extractionMethod === 'vrbo' ? 'Extraídos de VRBO' :
                   `Extraídos usando: ${extractionMethod}`
                 }
               </AlertDescription>
