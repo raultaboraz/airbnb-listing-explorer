@@ -21,11 +21,26 @@ export const UrlInput: React.FC<UrlInputProps> = ({
 }) => {
   const [url, setUrl] = useState('');
   const [isValid, setIsValid] = useState(false);
+  const [urlType, setUrlType] = useState<'airbnb' | 'vrbo' | 'unknown'>('unknown');
   const [scrapingMethod, setScrapingMethod] = useState<ScrapingMethod>('simulated');
 
   const validateUrl = (inputUrl: string) => {
     const airbnbRegex = /^https:\/\/(www\.)?airbnb\.(com|ca|co\.uk|fr|de|es|it|com\.au|jp)\/rooms\/\d+/;
-    return airbnbRegex.test(inputUrl);
+    const vrboRegex = /^https:\/\/(www\.)?vrbo\.com\/[^\/]+\/p\d+/;
+    
+    const isAirbnb = airbnbRegex.test(inputUrl);
+    const isVrbo = vrboRegex.test(inputUrl);
+    
+    if (isAirbnb) {
+      setUrlType('airbnb');
+      return true;
+    } else if (isVrbo) {
+      setUrlType('vrbo');
+      return true;
+    } else {
+      setUrlType('unknown');
+      return false;
+    }
   };
 
   const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -37,13 +52,87 @@ export const UrlInput: React.FC<UrlInputProps> = ({
   const canStartScraping = () => {
     if (disabled) return false;
     
-    // Para datos simulados, no necesitamos URL válida
+    // Para datos simulados, cualquier URL sirve
     if (scrapingMethod === 'simulated') {
       return url.length > 0;
     }
     
-    // Para otros métodos necesitamos URL válida
-    return isValid;
+    // Para VRBO, debe ser URL de VRBO
+    if (scrapingMethod === 'vrbo') {
+      return isValid && urlType === 'vrbo';
+    }
+    
+    // Para otros métodos (internal/apify), debe ser URL de Airbnb
+    return isValid && urlType === 'airbnb';
+  };
+
+  const getPlaceholder = () => {
+    if (scrapingMethod === 'vrbo') {
+      return 'https://www.vrbo.com/es-es/p6950877';
+    }
+    return 'https://www.airbnb.com/rooms/12345678';
+  };
+
+  const getUrlValidationMessage = () => {
+    if (!url) return null;
+    
+    if (scrapingMethod === 'simulated') {
+      return (
+        <p className="text-sm text-blue-600">
+          Para datos simulados, cualquier URL sirve como referencia
+        </p>
+      );
+    }
+    
+    if (scrapingMethod === 'vrbo') {
+      if (urlType === 'vrbo') {
+        return (
+          <p className="text-sm text-green-600">
+            ✅ URL de VRBO válida detectada
+          </p>
+        );
+      } else if (urlType === 'airbnb') {
+        return (
+          <p className="text-sm text-amber-600">
+            ⚠️ Esta es una URL de Airbnb. Para VRBO, cambia el método o usa una URL de VRBO
+          </p>
+        );
+      } else {
+        return (
+          <p className="text-sm text-red-600">
+            ❌ Ingresa una URL válida de VRBO (ej: https://www.vrbo.com/es-es/p6950877)
+          </p>
+        );
+      }
+    }
+    
+    // Para métodos de Airbnb (internal/apify)
+    if (urlType === 'airbnb') {
+      return (
+        <p className="text-sm text-green-600">
+          ✅ URL de Airbnb válida detectada
+        </p>
+      );
+    } else if (urlType === 'vrbo') {
+      return (
+        <p className="text-sm text-amber-600">
+          ⚠️ Esta es una URL de VRBO. Cambia el método a "Sistema VRBO" o usa una URL de Airbnb
+        </p>
+      );
+    } else {
+      return (
+        <p className="text-sm text-red-600">
+          ❌ Ingresa una URL válida de Airbnb (ej: https://www.airbnb.com/rooms/12345678)
+        </p>
+      );
+    }
+  };
+
+  const getButtonText = () => {
+    if (scrapingMethod === 'simulated') return 'Generar Datos';
+    if (scrapingMethod === 'vrbo') return 'Extraer de VRBO';
+    if (scrapingMethod === 'apify') return 'Extraer con Apify';
+    return 'Intentar Extracción';
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -59,7 +148,7 @@ export const UrlInput: React.FC<UrlInputProps> = ({
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Download className="h-5 w-5 text-blue-600" />
-            <span>Airbnb Listing URL</span>
+            <span>URL del Listing</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -67,36 +156,17 @@ export const UrlInput: React.FC<UrlInputProps> = ({
             <div className="space-y-2">
               <Input
                 type="url"
-                placeholder="https://www.airbnb.com/rooms/12345678"
+                placeholder={getPlaceholder()}
                 value={url}
                 onChange={handleUrlChange}
                 disabled={disabled}
                 className={`transition-colors ${
-                  url && !isValid && scrapingMethod !== 'simulated' ? 'border-red-300 focus:border-red-500' : ''
+                  url && !canStartScraping() && scrapingMethod !== 'simulated' ? 'border-red-300 focus:border-red-500' : ''
                 } ${
-                  isValid || scrapingMethod === 'simulated' ? 'border-green-300 focus:border-green-500' : ''
+                  (isValid || scrapingMethod === 'simulated') && canStartScraping() ? 'border-green-300 focus:border-green-500' : ''
                 }`}
               />
-              {url && !isValid && scrapingMethod !== 'simulated' && (
-                <p className="text-sm text-red-600">
-                  Please enter a valid Airbnb listing URL
-                </p>
-              )}
-              {scrapingMethod === 'simulated' && (
-                <p className="text-sm text-blue-600">
-                  Para datos simulados, cualquier URL sirve como referencia
-                </p>
-              )}
-              {scrapingMethod === 'apify' && (
-                <p className="text-sm text-green-600">
-                  Apify está preconfigurado y listo para extraer datos reales
-                </p>
-              )}
-              {scrapingMethod === 'internal' && (
-                <p className="text-sm text-amber-600">
-                  Enter the URL of an Airbnb listing (e.g., https://www.airbnb.com/rooms/12345678)
-                </p>
-              )}
+              {getUrlValidationMessage()}
             </div>
             
             <div className="flex space-x-3">
@@ -113,11 +183,7 @@ export const UrlInput: React.FC<UrlInputProps> = ({
                 ) : (
                   <>
                     <Download className="h-4 w-4" />
-                    <span>
-                      {scrapingMethod === 'simulated' ? 'Generar Datos' : 
-                       scrapingMethod === 'apify' ? 'Extraer con Apify' : 
-                       'Intentar Extracción'}
-                    </span>
+                    <span>{getButtonText()}</span>
                   </>
                 )}
               </Button>
