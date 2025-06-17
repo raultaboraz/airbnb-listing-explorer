@@ -331,109 +331,111 @@ export const AirbnbScraper = () => {
             />
           )}
 
+          {/* Mostrar la interfaz principal siempre que no esté en fallback */}
           {!showApifyKeyFallback && (
-            <>
-              <UrlInput 
-                onStartScraping={extractData}
-                disabled={isLoading}
-                onReset={resetData}
-                showReset={scrapingData !== null}
+            <UrlInput 
+              onStartScraping={extractData}
+              disabled={isLoading}
+              onReset={resetData}
+              showReset={scrapingData !== null}
+            />
+          )}
+          
+          {/* Progress tracker */}
+          {isLoading && (
+            <ProgressTracker 
+              progress={progress}
+              currentStep={currentStep}
+              isComplete={progress === 100}
+            />
+          )}
+          
+          {/* Manual entry section */}
+          {showManualEntry && !scrapingData && (
+            <div className="space-y-4">
+              <Alert className="border-blue-200 bg-blue-50">
+                <Settings className="h-4 w-4 text-blue-600" />
+                <AlertDescription className="text-blue-800">
+                  <strong>💡 Entrada Manual Recomendada:</strong> Para obtener datos reales del listing, 
+                  introduce la información manualmente desde la página de {currentMethod === 'vrbo' ? 'VRBO' : 'Airbnb'}.
+                </AlertDescription>
+              </Alert>
+              
+              <ManualDataEntry 
+                onDataSubmit={handleManualDataSubmit}
+                initialUrl={currentUrl}
               />
               
-              {/* ... keep existing code (progress tracker, manual entry, alerts, data display) */}
-              
-              {isLoading && (
-                <ProgressTracker 
-                  progress={progress}
-                  currentStep={currentStep}
-                  isComplete={progress === 100}
-                />
-              )}
-              
-              {showManualEntry && !scrapingData && (
-                <div className="space-y-4">
-                  <Alert className="border-blue-200 bg-blue-50">
-                    <Settings className="h-4 w-4 text-blue-600" />
-                    <AlertDescription className="text-blue-800">
-                      <strong>💡 Entrada Manual Recomendada:</strong> Para obtener datos reales del listing, 
-                      introduce la información manualmente desde la página de {currentMethod === 'vrbo' ? 'VRBO' : 'Airbnb'}.
-                    </AlertDescription>
-                  </Alert>
-                  
-                  <ManualDataEntry 
-                    onDataSubmit={handleManualDataSubmit}
-                    initialUrl={currentUrl}
-                  />
-                  
-                  <div className="flex justify-center">
-                    <Button 
-                      onClick={() => setShowManualEntry(false)}
-                      variant="outline"
-                      size="sm"
-                    >
-                      Ocultar Entrada Manual
-                    </Button>
-                  </div>
-                </div>
-              )}
-              
-              {scrapingData && isSimulated && currentMethod === 'simulated' && (
-                <Alert className="border-purple-200 bg-purple-50">
-                  <PlayCircle className="h-4 w-4 text-purple-600" />
-                  <AlertDescription className="text-purple-800">
-                    <strong>🎭 DATOS SIMULADOS:</strong> Estos son datos de demostración generados para probar la funcionalidad. 
-                    Son completamente inventados y NO corresponden al listing real.
-                  </AlertDescription>
-                </Alert>
-              )}
-              
-              {scrapingData && isSimulated && (currentMethod === 'internal' || currentMethod === 'vrbo') && (
-                <Alert className="border-red-200 bg-red-50">
-                  <AlertTriangle className="h-4 w-4 text-red-600" />
-                  <AlertDescription className="text-red-800">
-                    <strong>🎭 DATOS SIMULADOS (Fallback):</strong> El scraping de {currentMethod === 'vrbo' ? 'VRBO' : 'Airbnb'} fue bloqueado, 
-                    se generaron datos de demostración. Para datos reales, usa Apify Premium.
-                  </AlertDescription>
-                </Alert>
-              )}
-              
-              {scrapingData && !isSimulated && (
-                <Alert className="border-green-200 bg-green-50">
-                  <RefreshCw className="h-4 w-4 text-green-600" />
-                  <AlertDescription className="text-green-800">
-                    <strong>✅ Datos Reales:</strong> {
-                      extractionMethod === 'apify' ? 'Extraídos con Apify Premium' :
-                      extractionMethod === 'manual' ? 'Introducidos manualmente' : 
-                      extractionMethod === 'vrbo' ? 'Extraídos de VRBO' :
-                      `Extraídos usando: ${extractionMethod}`
-                    }
-                  </AlertDescription>
-                </Alert>
-              )}
-              
-              {scrapingData && (
-                <div className="space-y-6">
-                  <DataDisplay data={scrapingData} />
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <DownloadSection data={scrapingData} />
-                    <WordPressPublisher data={scrapingData} />
-                  </div>
-                </div>
-              )}
-              
-              {!scrapingData && !isLoading && !showManualEntry && (
-                <div className="text-center py-8">
-                  <Button 
-                    onClick={() => setShowManualEntry(true)}
-                    variant="outline"
-                    className="border-blue-300 hover:border-blue-400"
-                  >
-                    <Settings className="h-4 w-4 mr-2" />
-                    Usar Entrada Manual (Alternativa)
-                  </Button>
-                </div>
-              )}
-            </>
+              <div className="flex justify-center">
+                <Button 
+                  onClick={() => setShowManualEntry(false)}
+                  variant="outline"
+                  size="sm"
+                >
+                  Ocultar Entrada Manual
+                </Button>
+              </div>
+            </div>
+          )}
+          
+          {/* Status alerts */}
+          {scrapingData && isSimulated && currentMethod === 'simulated' && (
+            <Alert className="border-purple-200 bg-purple-50">
+              <PlayCircle className="h-4 w-4 text-purple-600" />
+              <AlertDescription className="text-purple-800">
+                <strong>🎭 DATOS SIMULADOS:</strong> Estos son datos de demostración generados para probar la funcionalidad. 
+                Son completamente inventados y NO corresponden al listing real.
+              </AlertDescription>
+            </Alert>
+          )}
+          
+          {scrapingData && isSimulated && (currentMethod === 'internal' || currentMethod === 'vrbo') && (
+            <Alert className="border-red-200 bg-red-50">
+              <AlertTriangle className="h-4 w-4 text-red-600" />
+              <AlertDescription className="text-red-800">
+                <strong>🎭 DATOS SIMULADOS (Fallback):</strong> El scraping de {currentMethod === 'vrbo' ? 'VRBO' : 'Airbnb'} fue bloqueado, 
+                se generaron datos de demostración. Para datos reales, usa Apify Premium.
+              </AlertDescription>
+            </Alert>
+          )}
+          
+          {scrapingData && !isSimulated && (
+            <Alert className="border-green-200 bg-green-50">
+              <RefreshCw className="h-4 w-4 text-green-600" />
+              <AlertDescription className="text-green-800">
+                <strong>✅ Datos Reales:</strong> {
+                  extractionMethod === 'apify' ? 'Extraídos con Apify Premium' :
+                  extractionMethod === 'manual' ? 'Introducidos manualmente' : 
+                  extractionMethod === 'vrbo' ? 'Extraídos de VRBO' :
+                  `Extraídos usando: ${extractionMethod}`
+                }
+              </AlertDescription>
+            </Alert>
+          )}
+          
+          {/* Data display and actions */}
+          {scrapingData && (
+            <div className="space-y-6">
+              <DataDisplay data={scrapingData} />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <DownloadSection data={scrapingData} />
+                <WordPressPublisher data={scrapingData} />
+              </div>
+            </div>
+          )}
+          
+          {/* Manual entry button when no data and not loading */}
+          {!scrapingData && !isLoading && !showManualEntry && !showApifyKeyFallback && (
+            <div className="text-center py-8">
+              <Button 
+                onClick={() => setShowManualEntry(true)}
+                variant="outline"
+                className="border-blue-300 hover:border-blue-400"
+              >
+                <Settings className="h-4 w-4 mr-2" />
+                Usar Entrada Manual (Alternativa)
+              </Button>
+            </div>
           )}
         </TabsContent>
         
