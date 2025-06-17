@@ -29,43 +29,102 @@ export const testApifyConnection = async (apiKey: string): Promise<ApifyConnecti
       throw new Error('Formato de API key inválido');
     }
 
-    console.log('📡 Conectando con proxy de Netlify...');
+    console.log('📡 Conectando directamente con Apify API...');
     
-    // Usar la función proxy de Netlify para evitar problemas de CORS
-    const response = await fetch('/.netlify/functions/apify-connection-test', {
-      method: 'POST',
+    // 1. Probar conexión básica y obtener datos del usuario
+    const userResponse = await fetch('https://api.apify.com/v2/users/me', {
       headers: {
+        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ apiKey }),
     });
 
-    if (!response.ok) {
-      throw new Error(`Error en la función proxy: ${response.status} ${response.statusText}`);
+    if (!userResponse.ok) {
+      let errorMessage = 'Error desconocido';
+      if (userResponse.status === 401) {
+        errorMessage = 'API key inválida o expirada';
+      } else if (userResponse.status === 403) {
+        errorMessage = 'Acceso denegado. Verifica los permisos de tu API key';
+      } else {
+        errorMessage = `Error de conexión: ${userResponse.status} ${userResponse.statusText}`;
+      }
+      
+      throw new Error(errorMessage);
     }
 
-    const result = await response.json();
-    const responseTime = Date.now() - startTime;
+    const userData = await userResponse.json();
 
-    if (!result.success) {
-      console.error('❌ Error en prueba de conexión:', result.error);
-      return {
-        success: false,
-        responseTime,
-        error: result.error,
+    // 2. Obtener información de créditos
+    let credits = undefined;
+    try {
+      const accountResponse = await fetch('https://api.apify.com/v2/users/me/usage/monthly', {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (accountResponse.ok) {
+        const accountData = await accountResponse.json();
+        credits = {
+          current: accountData.data?.current || 0,
+          monthlyLimit: accountData.data?.limit || 0,
+        };
+      }
+    } catch (error) {
+      console.warn('No se pudieron obtener los créditos:', error);
+    }
+
+    // 3. Verificar disponibilidad del actor de Airbnb
+    let actor = undefined;
+    try {
+      const actorId = 'curious_coder/airbnb-scraper';
+      const actorResponse = await fetch(`https://api.apify.com/v2/acts/${actorId}`, {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (actorResponse.ok) {
+        const actorData = await actorResponse.json();
+        actor = {
+          available: true,
+          id: actorData.data.id,
+          name: actorData.data.name,
+        };
+      } else {
+        actor = {
+          available: false,
+          id: actorId,
+          name: 'Airbnb Scraper',
+        };
+      }
+    } catch (error) {
+      console.warn('No se pudo verificar el actor:', error);
+      actor = {
+        available: false,
+        id: 'curious_coder/airbnb-scraper',
+        name: 'Airbnb Scraper',
       };
     }
 
+    const responseTime = Date.now() - startTime;
+
     console.log(`✅ Prueba de conexión completada en ${responseTime}ms`);
-    console.log('✅ Datos de usuario obtenidos:', result.user);
-    console.log('💰 Créditos obtenidos:', result.credits);
-    console.log('🎭 Actor disponible:', result.actor);
+    console.log('✅ Datos de usuario obtenidos:', userData.data);
+    console.log('💰 Créditos obtenidos:', credits);
+    console.log('🎭 Actor disponible:', actor);
 
     return {
       success: true,
-      user: result.user,
-      credits: result.credits,
-      actor: result.actor,
+      user: {
+        id: userData.data.id,
+        username: userData.data.username,
+        email: userData.data.email,
+      },
+      credits,
+      actor,
       responseTime,
     };
 
