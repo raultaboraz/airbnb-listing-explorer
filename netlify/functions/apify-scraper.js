@@ -30,36 +30,37 @@ exports.handler = async (event, context) => {
     };
   }
 
-  const apiKey = process.env.APIFY_API_KEY;
-  
-  if (!apiKey) {
-    console.error('❌ APIFY_API_KEY not found in environment');
-    return {
-      statusCode: 500,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ 
-        error: 'Apify API key not configured. Please contact administrator.' 
-      })
-    };
-  }
-
   try {
-    const { action, url, runId, datasetId } = JSON.parse(event.body || '{}');
+    const { action, url, runId, datasetId, apiKey } = JSON.parse(event.body || '{}');
     
-    console.log(`🚀 Apify action: ${action}`);
+    // Usar API key del request o la del environment como fallback
+    const apiKeyToUse = apiKey || process.env.APIFY_API_KEY;
+    
+    if (!apiKeyToUse) {
+      console.error('❌ No API key available');
+      return {
+        statusCode: 400,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          error: 'No API key provided. Please provide an API key in the request or contact administrator.' 
+        })
+      };
+    }
+    
+    console.log(`🚀 Apify action: ${action} with API key: ${apiKeyToUse.substring(0, 15)}...`);
 
     switch (action) {
       case 'start_run':
-        return await startApifyRun(url, apiKey);
+        return await startApifyRun(url, apiKeyToUse);
       
       case 'check_status':
-        return await checkRunStatus(runId, apiKey);
+        return await checkRunStatus(runId, apiKeyToUse);
       
       case 'get_results':
-        return await getResults(datasetId, apiKey);
+        return await getResults(datasetId, apiKeyToUse);
       
       default:
         return {
