@@ -1,3 +1,4 @@
+
 import { ScrapingData } from '@/types/scraping';
 
 export interface ApifyScrapingResult {
@@ -53,49 +54,10 @@ export const scrapeWithApify = async (
     throw new Error('NO_VALID_API_KEY');
   }
 
-  // Intentar usar Netlify function primero, luego fallback a API directa
-  try {
-    console.log('🔄 Intentando usar Netlify function...');
-    onProgress(15, 'Conectando a través de Netlify function...');
-    return await scrapeWithNetlifyProxy(url, apiKeyToUse, onProgress);
-  } catch (netlifyError) {
-    console.warn('⚠️ Netlify function no disponible, usando API directa de Apify:', netlifyError);
-    onProgress(15, 'Conectando directamente con Apify...');
-    return await scrapeWithDirectApify(url, apiKeyToUse, onProgress);
-  }
-};
-
-// Función para usar Netlify function como proxy
-const scrapeWithNetlifyProxy = async (
-  url: string,
-  apiKey: string,
-  onProgress: (progress: number, step: string) => void
-): Promise<ApifyScrapingResult> => {
-  onProgress(25, 'Iniciando actor de Airbnb via Netlify...');
-  console.log('📤 Starting Apify run via Netlify function');
-
-  // 1. Iniciar el run
-  const startResponse = await fetch('/.netlify/functions/apify-scraper', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      action: 'start_run',
-      url: url,
-      apiKey: apiKey
-    }),
-  });
-
-  if (!startResponse.ok) {
-    const errorText = await startResponse.text();
-    throw new Error(`Error al iniciar Apify vía Netlify (${startResponse.status}): ${errorText}`);
-  }
-
-  const runData = await startResponse.json();
-  console.log('✅ Apify run started via Netlify:', runData);
-
-  return await processApifyRunViaNetlify(runData.data.id, runData.data.defaultDatasetId, url, onProgress, apiKey);
+  // Siempre usar API directa (más simple y confiable)
+  console.log('🔄 Usando API directa de Apify...');
+  onProgress(15, 'Conectando directamente con Apify...');
+  return await scrapeWithDirectApify(url, apiKeyToUse, onProgress);
 };
 
 // Función para usar API directa de Apify
@@ -141,82 +103,6 @@ const scrapeWithDirectApify = async (
   console.log('✅ Apify run started directly:', runData);
 
   return await processApifyRunDirect(runData.data.id, runData.data.defaultDatasetId, url, onProgress, apiKey);
-};
-
-// Procesar run de Apify via Netlify
-const processApifyRunViaNetlify = async (
-  runId: string,
-  datasetId: string,
-  originalUrl: string,
-  onProgress: (progress: number, step: string) => void,
-  apiKey: string
-): Promise<ApifyScrapingResult> => {
-  console.log('✅ Actor iniciado con ID:', runId, 'Dataset ID:', datasetId);
-  onProgress(40, 'Ejecutando extracción...');
-
-  // Esperar a que termine la ejecución usando Netlify
-  let runStatus = 'RUNNING';
-  let attempts = 0;
-  const maxAttempts = 60;
-
-  while (runStatus === 'RUNNING' && attempts < maxAttempts) {
-    await new Promise(resolve => setTimeout(resolve, 10000));
-    attempts++;
-    
-    const progressPercent = 40 + Math.min(45, attempts * 0.75);
-    onProgress(progressPercent, `Extrayendo datos... (${attempts * 10}s)`);
-
-    try {
-      const statusResponse = await fetch('/.netlify/functions/apify-scraper', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          action: 'check_status',
-          runId: runId,
-          apiKey: apiKey
-        }),
-      });
-
-      if (statusResponse.ok) {
-        const statusData = await statusResponse.json();
-        runStatus = statusData.data.status;
-        console.log(`📊 Estado del run: ${runStatus} (intento ${attempts})`);
-      }
-    } catch (error) {
-      console.warn('⚠️ No se pudo verificar estado, continuando...');
-    }
-  }
-
-  if (runStatus !== 'SUCCEEDED') {
-    console.error('❌ Estado final del run:', runStatus);
-    throw new Error(`La extracción de Apify falló con estado: ${runStatus}. Tiempo transcurrido: ${attempts * 10}s`);
-  }
-
-  onProgress(85, 'Obteniendo resultados...');
-
-  // Obtener resultados via Netlify
-  const resultsResponse = await fetch('/.netlify/functions/apify-scraper', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      action: 'get_results',
-      datasetId: datasetId,
-      apiKey: apiKey
-    }),
-  });
-
-  if (!resultsResponse.ok) {
-    const errorText = await resultsResponse.text();
-    throw new Error(`Error al obtener resultados (${resultsResponse.status}): ${errorText}`);
-  }
-
-  const results = await resultsResponse.json();
-
-  return processResults(results, originalUrl, onProgress);
 };
 
 // Procesar run de Apify directamente
