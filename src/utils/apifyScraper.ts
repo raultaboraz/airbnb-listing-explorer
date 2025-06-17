@@ -1,4 +1,3 @@
-
 import { ScrapingData } from '@/types/scraping';
 
 export interface ApifyScrapingResult {
@@ -24,9 +23,20 @@ export const scrapeWithApify = async (
   console.log('🔑 Config recibido:', { hasApiKey: !!config.apiKey, apiKeyLength: config.apiKey?.length });
   onProgress(10, 'Conectando con Apify...');
 
-  // SIEMPRE priorizar API directa si tenemos API key
-  const apiKeyToUse = config.apiKey || localStorage.getItem('apify_api_key');
-  console.log('🔍 Buscando API key:', { fromConfig: !!config.apiKey, fromStorage: !!localStorage.getItem('apify_api_key'), final: !!apiKeyToUse });
+  // Obtener API key de múltiples fuentes
+  let apiKeyToUse = config.apiKey;
+  
+  if (!apiKeyToUse) {
+    apiKeyToUse = localStorage.getItem('apify_api_key');
+    console.log('🔍 API key obtenida de localStorage:', { hasKey: !!apiKeyToUse, length: apiKeyToUse?.length });
+  }
+
+  console.log('🔍 API key final para validar:', { 
+    hasKey: !!apiKeyToUse, 
+    length: apiKeyToUse?.length,
+    starts: apiKeyToUse?.substring(0, 10),
+    full: apiKeyToUse // Para debug temporal
+  });
   
   if (apiKeyToUse && validateApifyKey(apiKeyToUse)) {
     console.log('✅ API key válida encontrada, usando API directa');
@@ -34,8 +44,15 @@ export const scrapeWithApify = async (
     return await scrapeWithDirectAPI(url, apiKeyToUse, onProgress);
   }
 
-  // Solo si NO hay API key válida, mostrar error
+  // Si no hay API key válida, lanzar error específico
   console.error('❌ No se encontró API key válida');
+  console.error('Debug info:', {
+    configKey: config.apiKey,
+    storageKey: localStorage.getItem('apify_api_key'),
+    finalKey: apiKeyToUse,
+    isValid: apiKeyToUse ? validateApifyKey(apiKeyToUse) : false
+  });
+  
   throw new Error('NO_VALID_API_KEY');
 };
 
@@ -231,8 +248,31 @@ const convertApifyToScrapingData = (apifyData: any, originalUrl: string): Scrapi
 };
 
 export const validateApifyKey = (apiKey: string): boolean => {
-  const isValid = apiKey && apiKey.startsWith('apify_api_') && apiKey.length > 20;
-  console.log('🔍 Validando API key:', { isValid, length: apiKey?.length, prefix: apiKey?.substring(0, 10) });
+  console.log('🔍 Validando API key:', { 
+    exists: !!apiKey, 
+    type: typeof apiKey,
+    length: apiKey?.length, 
+    prefix: apiKey?.substring(0, 12),
+    fullKey: apiKey // Para debug
+  });
+  
+  if (!apiKey || typeof apiKey !== 'string') {
+    console.log('❌ API key no es string válido');
+    return false;
+  }
+  
+  const hasValidPrefix = apiKey.startsWith('apify_api_');
+  const hasValidLength = apiKey.length > 20;
+  
+  console.log('🔍 Validación detallada:', {
+    hasValidPrefix,
+    hasValidLength,
+    actualLength: apiKey.length
+  });
+  
+  const isValid = hasValidPrefix && hasValidLength;
+  console.log('🔍 Resultado de validación:', { isValid });
+  
   return isValid;
 };
 
