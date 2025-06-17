@@ -1,4 +1,3 @@
-
 import { ScrapingData } from '@/types/scraping';
 
 export interface ApifyScrapingResult {
@@ -21,6 +20,7 @@ export const scrapeWithApify = async (
   onProgress: (progress: number, step: string) => void
 ): Promise<ApifyScrapingResult> => {
   console.log('🚀 Iniciando scraping con Apify para:', url);
+  console.log('🔑 Config recibido:', { hasApiKey: !!config.apiKey, apiKeyLength: config.apiKey?.length });
   onProgress(10, 'Conectando con Apify...');
 
   // Primero intentar con función de Netlify
@@ -31,10 +31,12 @@ export const scrapeWithApify = async (
     
     // Si falla Netlify, usar API directa si tenemos API key
     if (config.apiKey && validateApifyKey(config.apiKey)) {
+      console.log('✅ API key válida encontrada, usando API directa');
       onProgress(15, 'Conectando directamente con Apify...');
       return await scrapeWithDirectAPI(url, config.apiKey, onProgress);
     } else {
-      throw new Error('Función de Netlify no disponible y no se proporcionó API key válida de Apify');
+      console.error('❌ No hay API key válida disponible');
+      throw new Error('NETLIFY_FUNCTION_NOT_AVAILABLE');
     }
   }
 };
@@ -321,7 +323,9 @@ const convertApifyToScrapingData = (apifyData: any, originalUrl: string): Scrapi
 };
 
 export const validateApifyKey = (apiKey: string): boolean => {
-  return apiKey && apiKey.startsWith('apify_api_') && apiKey.length > 20;
+  const isValid = apiKey && apiKey.startsWith('apify_api_') && apiKey.length > 20;
+  console.log('🔍 Validando API key:', { isValid, length: apiKey?.length, prefix: apiKey?.substring(0, 10) });
+  return isValid;
 };
 
 export const estimateApifyCost = (urls: number): string => {

@@ -87,6 +87,7 @@ export const AirbnbScraper = () => {
         // Usar Apify con manejo de fallback
         setCurrentStep('Conectando con Apify...');
         try {
+          console.log('🔑 Intentando con tempApiKey:', { hasTempKey: !!tempApiKey, length: tempApiKey?.length });
           const apifyResult = await scrapeWithApify(url, { apiKey: tempApiKey }, (progress, step) => {
             console.log(`📊 Apify - Progreso: ${progress}% - ${step}`);
             setProgress(progress);
@@ -106,9 +107,9 @@ export const AirbnbScraper = () => {
           };
         } catch (apifyError) {
           const errorMessage = apifyError instanceof Error ? apifyError.message : 'Error desconocido';
+          console.error('❌ Error específico de Apify:', errorMessage);
           
-          if (errorMessage.includes('NETLIFY_FUNCTION_NOT_AVAILABLE') || 
-              errorMessage.includes('Función de Netlify no está disponible')) {
+          if (errorMessage.includes('NETLIFY_FUNCTION_NOT_AVAILABLE')) {
             console.log('🔄 Ofreciendo fallback de API key...');
             setIsLoading(false);
             setShowApifyKeyFallback(true);
@@ -250,6 +251,7 @@ export const AirbnbScraper = () => {
   };
 
   const handleApifyKeyFallback = async (apiKey: string) => {
+    console.log('🔑 Configurando nueva API key:', { length: apiKey?.length });
     setTempApiKey(apiKey);
     setShowApifyKeyFallback(false);
     
