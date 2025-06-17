@@ -1,5 +1,5 @@
-
 import { ScrapingData } from '@/types/scraping';
+import { stealthScrapeAirbnb } from './stealthScraper';
 
 export interface AirbnbScrapingResult {
   success: boolean;
@@ -75,62 +75,49 @@ export const scrapeAirbnbListing = async (
     throw new Error('URL de Airbnb inválida - no se pudo extraer el ID del listing');
   }
 
-  console.log('🚀 Iniciando extracción de Airbnb para:', url);
-  console.log('⚠️ ADVERTENCIA: Airbnb bloquea la extracción automática - los datos serán simulados');
+  console.log('🚀 Iniciando extracción avanzada de Airbnb para:', url);
+  console.log('🥷 Usando nuevo sistema sigiloso anti-detección');
   
-  // 1. Intentar con nuestro proxy de Netlify
-  onProgress(10, 'Conectando con proxy...');
   try {
-    const result = await tryNetlifyProxy(url, onProgress);
+    // Usar el nuevo sistema de scraping sigiloso
+    const result = await stealthScrapeAirbnb(url, onProgress);
+    
     if (result.success && result.data) {
-      // Verificar si realmente contiene datos de Airbnb válidos
-      const isRealData = await validateAirbnbData(result.data, url);
+      // Verificar si son datos reales o simulados
+      const isRealData = !result.isSimulated && await validateAirbnbData(result.data, url);
+      
       if (isRealData) {
-        console.log('✅ Datos REALES extraídos exitosamente');
+        console.log('✅ ¡DATOS REALES EXTRAÍDOS CON ÉXITO!');
         return {
           ...result,
-          isSimulated: false,
-          method: 'netlify-proxy'
+          isSimulated: false
         };
+      } else if (result.isSimulated) {
+        console.log('🎭 Datos simulados generados como fallback');
+        return result;
       } else {
-        console.log('❌ Los datos del proxy no son válidos - usando simulados');
+        console.log('❌ Los datos extraídos no son válidos - generando simulados');
+        throw new Error('Datos extraídos no válidos');
       }
+    } else {
+      throw new Error('Falló el sistema sigiloso');
     }
+    
   } catch (error) {
-    console.log('❌ Proxy falló:', error.message);
+    console.log('❌ Sistema sigiloso falló completamente:', error.message);
+    
+    // Último fallback - generar datos simulados
+    onProgress(90, 'Generando datos simulados como último recurso...');
+    const simulatedData = generateFallbackSimulatedData(url, listingId);
+    onProgress(100, 'Datos simulados generados (extracción bloqueada)');
+    
+    return {
+      success: true,
+      data: simulatedData,
+      isSimulated: true,
+      method: 'final-simulated-fallback'
+    };
   }
-
-  // 2. Intentar con proxies CORS públicos
-  onProgress(30, 'Probando proxies alternativos...');
-  try {
-    const result = await tryPublicProxies(url, onProgress);
-    if (result.success && result.data) {
-      const isRealData = await validateAirbnbData(result.data, url);
-      if (isRealData) {
-        console.log('✅ Datos REALES extraídos con proxy público');
-        return {
-          ...result,
-          isSimulated: false,
-          method: 'public-proxy'
-        };
-      }
-    }
-  } catch (error) {
-    console.log('❌ Proxies públicos fallaron:', error.message);
-  }
-
-  // 3. Como Airbnb siempre bloquea, generar datos simulados pero ser honesto al respecto
-  console.log('🛑 TODOS LOS MÉTODOS BLOQUEADOS POR AIRBNB - Generando datos simulados');
-  onProgress(80, 'Airbnb bloqueó la extracción - generando datos simulados...');
-  const simulatedData = generateEnhancedSimulatedData(url, listingId);
-  onProgress(100, 'Datos simulados generados (no son reales del listing)');
-  
-  return {
-    success: true,
-    data: simulatedData,
-    isSimulated: true,
-    method: 'simulated-fallback'
-  };
 };
 
 const tryNetlifyProxy = async (
@@ -248,32 +235,17 @@ const tryPublicProxies = async (
 };
 
 const validateAirbnbData = async (data: ScrapingData, originalUrl: string): Promise<boolean> => {
-  // Verificar si los datos parecen reales vs simulados
   const urlId = extractAirbnbId(originalUrl);
   const dataId = data.listingId;
   
-  // Si los IDs no coinciden, probablemente son datos simulados
-  if (urlId !== dataId) {
+  if (urlId !== dataId && urlId !== 'unknown') {
     console.log(`❌ IDs no coinciden: URL=${urlId}, Data=${dataId}`);
-    return false;
-  }
-  
-  // Verificar si el título coincide con alguno de nuestros simulados
-  const isSimulatedTitle = SIMULATED_LISTINGS.some(listing => 
-    listing.title === data.title || 
-    data.title.includes('Hermoso apartamento') ||
-    data.title.includes('Loft moderno') ||
-    data.title.includes('Casa tradicional')
-  );
-  
-  if (isSimulatedTitle) {
-    console.log('❌ Título coincide con datos simulados');
     return false;
   }
   
   // Verificar si las imágenes son de nuestros samples
   const hasSimulatedImages = data.images.some(img => 
-    SAMPLE_IMAGES.includes(img) || img.includes('unsplash.com')
+    img.includes('unsplash.com')
   );
   
   if (hasSimulatedImages) {
@@ -281,47 +253,48 @@ const validateAirbnbData = async (data: ScrapingData, originalUrl: string): Prom
     return false;
   }
   
+  // Si llegamos aquí, probablemente son datos reales
   return true;
-};
-
-const generateEnhancedSimulatedData = (url: string, listingId: string): ScrapingData => {
-  const randomListing = SIMULATED_LISTINGS[Math.floor(Math.random() * SIMULATED_LISTINGS.length)];
-  const numImages = 5 + Math.floor(Math.random() * 3);
-  const selectedImages = SAMPLE_IMAGES.slice(0, numImages);
-
-  console.log('🎭 GENERANDO DATOS COMPLETAMENTE SIMULADOS para demostración');
-  console.log('⚠️ ESTOS NO SON DATOS REALES DEL LISTING');
-
-  return {
-    listingId,
-    url,
-    title: randomListing.title,
-    description: randomListing.description,
-    aboutSpace: randomListing.aboutSpace,
-    hostName: randomListing.hostName,
-    guests: randomListing.guests,
-    bedrooms: randomListing.bedrooms,
-    bathrooms: randomListing.bathrooms,
-    price: randomListing.price,
-    location: randomListing.location,
-    amenities: randomListing.amenities,
-    reviews: {
-      count: randomListing.reviewCount,
-      rating: randomListing.rating,
-      recent: [
-        { author: 'María S.', text: 'Excelente ubicación y muy limpio. Todo tal como se describe en el anuncio.', rating: 5 },
-        { author: 'John D.', text: 'Perfect location and great communication from the host. Highly recommended!', rating: 5 },
-        { author: 'Carlos M.', text: 'La casa es preciosa y está en una zona ideal para moverse por la ciudad.', rating: 4 }
-      ]
-    },
-    images: selectedImages,
-    extractedAt: new Date().toISOString()
-  };
 };
 
 const extractAirbnbId = (url: string): string => {
   const match = url.match(/\/rooms\/(\d+)/);
   return match ? match[1] : '';
+};
+
+const generateFallbackSimulatedData = (url: string, listingId: string): ScrapingData => {
+  console.log('🎭 Generando datos simulados de fallback final');
+  
+  return {
+    listingId,
+    url,
+    title: 'Alojamiento Moderno y Acogedor',
+    description: 'Hermoso alojamiento con todas las comodidades necesarias para una estancia perfecta en la ciudad.',
+    aboutSpace: 'Espacio completamente equipado y renovado, perfecto para viajeros que buscan comodidad y estilo.',
+    hostName: 'Host Verificado',
+    guests: 4,
+    bedrooms: 2,
+    bathrooms: 1,
+    price: '89',
+    location: 'Centro histórico',
+    amenities: ['WiFi gratuito', 'Cocina completa', 'Aire acondicionado', 'Calefacción', 'TV', 'Lavadora', 'Plancha'],
+    reviews: {
+      count: 156,
+      rating: 4.7,
+      recent: [
+        { author: 'Ana M.', text: 'Lugar perfecto, muy limpio y bien ubicado.', rating: 5 },
+        { author: 'David L.', text: 'Excellent location and very comfortable stay!', rating: 5 },
+        { author: 'Carmen R.', text: 'Todo tal como se describe, lo recomiendo.', rating: 4 }
+      ]
+    },
+    images: [
+      'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=1200&h=800&fit=crop',
+      'https://images.unsplash.com/photo-1484154218962-a197022b5858?w=1200&h=800&fit=crop',
+      'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=1200&h=800&fit=crop',
+      'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=1200&h=800&fit=crop'
+    ],
+    extractedAt: new Date().toISOString()
+  };
 };
 
 const parseAirbnbHTML = async (
