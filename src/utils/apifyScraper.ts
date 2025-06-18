@@ -14,7 +14,7 @@ export interface ApifyConfig {
   actorId?: string;
 }
 
-// Función principal que usa la función de Netlify como proxy
+// Función principal que maneja múltiples estrategias de acceso
 export const scrapeWithApify = async (
   url: string,
   config: ApifyConfig,
@@ -25,23 +25,8 @@ export const scrapeWithApify = async (
   onProgress(10, 'Conectando con Apify...');
 
   // Obtener API key de múltiples fuentes
-  let apiKeyToUse = null;
+  let apiKeyToUse = getApiKey(config);
   
-  // Primero intentar con config.apiKey si existe
-  if (config.apiKey && config.apiKey.trim() !== '') {
-    apiKeyToUse = config.apiKey;
-    console.log('🔑 Usando API key del config');
-  }
-  
-  // Si no hay en config, buscar en localStorage
-  if (!apiKeyToUse) {
-    const storageKey = localStorage.getItem('apify_api_key');
-    if (storageKey && storageKey.trim() !== '') {
-      apiKeyToUse = storageKey;
-      console.log('🔑 Usando API key de localStorage');
-    }
-  }
-
   console.log('🔍 API key final para validar:', { 
     hasKey: !!apiKeyToUse, 
     length: apiKeyToUse?.length,
@@ -54,13 +39,44 @@ export const scrapeWithApify = async (
     throw new Error('NO_VALID_API_KEY');
   }
 
-  // Usar función de Netlify como proxy
-  console.log('🔄 Usando función de Netlify como proxy...');
-  onProgress(15, 'Conectando a través de Netlify...');
-  return await scrapeWithNetlifyProxy(url, apiKeyToUse, onProgress);
+  // Estrategia 1: Intentar con función de Netlify (si está disponible)
+  try {
+    console.log('🔄 Intentando con función de Netlify...');
+    onProgress(15, 'Probando función de Netlify...');
+    return await scrapeWithNetlifyProxy(url, apiKeyToUse, onProgress);
+  } catch (netlifyError) {
+    console.log('⚠️ Función de Netlify no disponible, probando acceso directo...');
+    
+    // Estrategia 2: Acceso directo a Apify API
+    try {
+      onProgress(30, 'Usando acceso directo a Apify...');
+      return await scrapeWithDirectApify(url, apiKeyToUse, onProgress);
+    } catch (directError) {
+      console.error('❌ Acceso directo también falló:', directError.message);
+      throw new Error(`Ambos métodos fallaron. Netlify: ${netlifyError.message}, Directo: ${directError.message}`);
+    }
+  }
 };
 
-// Función para usar Netlify function como proxy
+// Obtener API key desde múltiples fuentes
+const getApiKey = (config: ApifyConfig): string | null => {
+  // Primero intentar con config.apiKey si existe
+  if (config.apiKey && config.apiKey.trim() !== '') {
+    console.log('🔑 Usando API key del config');
+    return config.apiKey;
+  }
+  
+  // Si no hay en config, buscar en localStorage
+  const storageKey = localStorage.getItem('apify_api_key');
+  if (storageKey && storageKey.trim() !== '') {
+    console.log('🔑 Usando API key de localStorage');
+    return storageKey;
+  }
+
+  return null;
+};
+
+// Estrategia 1: Función de Netlify como proxy
 const scrapeWithNetlifyProxy = async (
   url: string,
   apiKey: string,
@@ -69,12 +85,25 @@ const scrapeWithNetlifyProxy = async (
   onProgress(25, 'Iniciando actor de Airbnb via Netlify...');
   console.log('📤 Starting Apify run via Netlify function');
 
+  // Verificar si la función de Netlify está disponible
+  try {
+    const testResponse = await fetch('/.netlify/functions/apify-scraper', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'test' })
+    });
+
+    if (!testResponse.ok && testResponse.status === 404) {
+      throw new Error('NETLIFY_FUNCTION_NOT_FOUND');
+    }
+  } catch (error) {
+    throw new Error('NETLIFY_FUNCTION_UNAVAILABLE');
+  }
+
   // 1. Iniciar el run
   const startResponse = await fetch('/.netlify/functions/apify-scraper', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       action: 'start_run',
       url: url,
@@ -91,6 +120,53 @@ const scrapeWithNetlifyProxy = async (
   console.log('✅ Apify run started via Netlify:', runData);
 
   return await processApifyRunViaNetlify(runData.data.id, runData.data.defaultDatasetId, url, onProgress, apiKey);
+};
+
+// Estrategia 2: Acceso directo a Apify API
+const scrapeWithDirectApify = async (
+  url: string,
+  apiKey: string,
+  onProgress: (progress: number, step: string) => void
+): Promise<ApifyScrapingResult> => {
+  console.log('🌐 Usando acceso directo a Apify API');
+  onProgress(35, 'Conectando directamente con Apify...');
+
+  const actorId = 'curious_coder/airbnb-scraper';
+  
+  const runPayload = {
+    startUrls: [{ url }],
+    maxRequestRetries: 3,
+    maxConcurrency: 1,
+    includeReviews: true,
+    currency: "USD",
+    language: "en",
+    proxyConfiguration: { 
+      useApifyProxy: true,
+      apifyProxyGroups: ["RESIDENTIAL"] 
+    }
+  };
+
+  console.log('📤 Starting Apify run directly with payload:', JSON.stringify(runPayload, null, 2));
+
+  // Iniciar el run directamente
+  const startResponse = await fetch(`https://api.apify.com/v2/acts/${actorId}/runs`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(runPayload)
+  });
+
+  if (!startResponse.ok) {
+    const errorText = await startResponse.text();
+    throw new Error(`Error al iniciar run directo (${startResponse.status}): ${errorText}`);
+  }
+
+  const runData = await startResponse.json();
+  console.log('✅ Apify run started directly:', runData);
+
+  return await processApifyRunDirect(runData.data.id, runData.data.defaultDatasetId, url, onProgress, apiKey);
 };
 
 // Procesar run de Apify via Netlify
@@ -119,9 +195,7 @@ const processApifyRunViaNetlify = async (
     try {
       const statusResponse = await fetch('/.netlify/functions/apify-scraper', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'check_status',
           runId: runId,
@@ -149,9 +223,7 @@ const processApifyRunViaNetlify = async (
   // Obtener resultados via Netlify
   const resultsResponse = await fetch('/.netlify/functions/apify-scraper', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       action: 'get_results',
       datasetId: datasetId,
@@ -165,7 +237,73 @@ const processApifyRunViaNetlify = async (
   }
 
   const results = await resultsResponse.json();
+  return processResults(results, originalUrl, onProgress);
+};
 
+// Procesar run de Apify directamente
+const processApifyRunDirect = async (
+  runId: string,
+  datasetId: string,
+  originalUrl: string,
+  onProgress: (progress: number, step: string) => void,
+  apiKey: string
+): Promise<ApifyScrapingResult> => {
+  console.log('✅ Actor iniciado directamente con ID:', runId, 'Dataset ID:', datasetId);
+  onProgress(40, 'Ejecutando extracción directa...');
+
+  // Esperar a que termine la ejecución usando acceso directo
+  let runStatus = 'RUNNING';
+  let attempts = 0;
+  const maxAttempts = 60;
+
+  while (runStatus === 'RUNNING' && attempts < maxAttempts) {
+    await new Promise(resolve => setTimeout(resolve, 10000));
+    attempts++;
+    
+    const progressPercent = 40 + Math.min(45, attempts * 0.75);
+    onProgress(progressPercent, `Extrayendo datos directamente... (${attempts * 10}s)`);
+
+    try {
+      const statusResponse = await fetch(`https://api.apify.com/v2/actor-runs/${runId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (statusResponse.ok) {
+        const statusData = await statusResponse.json();
+        runStatus = statusData.data.status;
+        console.log(`📊 Estado del run directo: ${runStatus} (intento ${attempts})`);
+      }
+    } catch (error) {
+      console.warn('⚠️ No se pudo verificar estado directo, continuando...');
+    }
+  }
+
+  if (runStatus !== 'SUCCEEDED') {
+    console.error('❌ Estado final del run directo:', runStatus);
+    throw new Error(`La extracción directa de Apify falló con estado: ${runStatus}. Tiempo transcurrido: ${attempts * 10}s`);
+  }
+
+  onProgress(85, 'Obteniendo resultados directamente...');
+
+  // Obtener resultados directamente
+  const resultsResponse = await fetch(`https://api.apify.com/v2/datasets/${datasetId}/items?format=json&clean=true`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    }
+  });
+
+  if (!resultsResponse.ok) {
+    const errorText = await resultsResponse.text();
+    throw new Error(`Error al obtener resultados directos (${resultsResponse.status}): ${errorText}`);
+  }
+
+  const results = await resultsResponse.json();
   return processResults(results, originalUrl, onProgress);
 };
 

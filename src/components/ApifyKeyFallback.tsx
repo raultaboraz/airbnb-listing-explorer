@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Key, ExternalLink, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Key, ExternalLink, AlertTriangle, CheckCircle, Wifi } from 'lucide-react';
 
 interface ApifyKeyFallbackProps {
   onApiKeyProvided: (apiKey: string) => void;
@@ -62,15 +62,16 @@ export const ApifyKeyFallback: React.FC<ApifyKeyFallbackProps> = ({
     <Card className="border-amber-200 bg-amber-50">
       <CardHeader>
         <CardTitle className="flex items-center space-x-2 text-amber-800">
-          <AlertTriangle className="h-5 w-5" />
-          <span>Función de Netlify No Disponible</span>
+          <Wifi className="h-5 w-5" />
+          <span>Conectividad con Apify</span>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <Alert className="border-blue-200 bg-blue-50">
-          <Key className="h-4 w-4 text-blue-600" />
+          <AlertTriangle className="h-4 w-4 text-blue-600" />
           <AlertDescription className="text-blue-800">
-            <strong>Solución:</strong> Usa tu API key de Apify directamente. 
+            <strong>Sistema Híbrido Activo:</strong> El sistema ahora usa múltiples métodos de conexión.
+            Si las funciones de Netlify no están disponibles, automáticamente cambiará a acceso directo.
             {savedKey && " Se detectó una API key guardada anteriormente."}
           </AlertDescription>
         </Alert>
@@ -81,6 +82,7 @@ export const ApifyKeyFallback: React.FC<ApifyKeyFallbackProps> = ({
               <CheckCircle className="h-4 w-4 text-green-600" />
               <AlertDescription className="text-green-800">
                 <strong>API Key Detectada:</strong> Se encontró una API key guardada localmente.
+                El sistema probará tanto Netlify como acceso directo automáticamente.
               </AlertDescription>
             </Alert>
             
@@ -159,6 +161,14 @@ export const ApifyKeyFallback: React.FC<ApifyKeyFallbackProps> = ({
               Apify Console
             </a>
             . La cuenta gratuita incluye $5 USD de créditos.
+          </AlertDescription>
+        </Alert>
+
+        <Alert className="border-purple-200 bg-purple-50">
+          <Wifi className="h-4 w-4 text-purple-600" />
+          <AlertDescription className="text-purple-800">
+            <strong>💡 Ventaja del Sistema Híbrido:</strong> El sistema ahora es más robusto.
+            Si hay problemas con Netlify, automáticamente usará el acceso directo a Apify sin interrupciones.
           </AlertDescription>
         </Alert>
       </CardContent>
