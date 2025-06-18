@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -63,16 +62,16 @@ export const ApifyKeyFallback: React.FC<ApifyKeyFallbackProps> = ({
       <CardHeader>
         <CardTitle className="flex items-center space-x-2 text-amber-800">
           <Wifi className="h-5 w-5" />
-          <span>Conectividad con Apify</span>
+          <span>Sistema Apify Simplificado</span>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <Alert className="border-blue-200 bg-blue-50">
           <AlertTriangle className="h-4 w-4 text-blue-600" />
           <AlertDescription className="text-blue-800">
-            <strong>Sistema Híbrido Activo:</strong> El sistema ahora usa múltiples métodos de conexión.
-            Si las funciones de Netlify no están disponibles, automáticamente cambiará a acceso directo.
-            {savedKey && " Se detectó una API key guardada anteriormente."}
+            <strong>Sistema Híbrido Optimizado:</strong> El sistema ahora usa un enfoque simplificado
+            pero robusto que automáticamente cambia entre función Netlify y acceso directo.
+            {savedKey && " Se detectó una API key guardada."}
           </AlertDescription>
         </Alert>
 
@@ -167,8 +166,8 @@ export const ApifyKeyFallback: React.FC<ApifyKeyFallbackProps> = ({
         <Alert className="border-purple-200 bg-purple-50">
           <Wifi className="h-4 w-4 text-purple-600" />
           <AlertDescription className="text-purple-800">
-            <strong>💡 Ventaja del Sistema Híbrido:</strong> El sistema ahora es más robusto.
-            Si hay problemas con Netlify, automáticamente usará el acceso directo a Apify sin interrupciones.
+            <strong>✨ Sistema Optimizado:</strong> Código más limpio y confiable
+            con mejor manejo de errores y experiencia de usuario mejorada.
           </AlertDescription>
         </Alert>
       </CardContent>

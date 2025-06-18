@@ -54,7 +54,6 @@ export const AirbnbScraper = () => {
     setExtractionMethod('');
     setShowManualEntry(false);
     setShowApifyKeyFallback(false);
-    // No resetear tempApiKey para mantener la key entre extracciones
   };
 
   const extractData = async (url: string, method: ScrapingMethod) => {
@@ -66,7 +65,7 @@ export const AirbnbScraper = () => {
     setProgress(0);
     
     try {
-      console.log(`🚀 Iniciando extracción para: ${url} usando método: ${method}`);
+      console.log(`🚀 Iniciando extracción: ${url} - Método: ${method}`);
       
       let scrapingResult;
       
@@ -75,7 +74,7 @@ export const AirbnbScraper = () => {
         setCurrentStep('Generando datos simulados...');
         setProgress(50);
         
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Simular procesamiento
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
         setProgress(80);
         setCurrentStep('Aplicando formato...');
@@ -93,28 +92,19 @@ export const AirbnbScraper = () => {
         };
         
       } else if (method === 'apify') {
-        // Usar Apify con manejo de API key guardada - ARREGLADO
+        // Usar Apify con sistema híbrido simplificado
         setCurrentStep('Conectando con Apify...');
         
-        // Obtener la API key de la forma más directa posible
         let apiKeyToUse = tempApiKey;
         if (!apiKeyToUse || apiKeyToUse.trim() === '') {
           apiKeyToUse = localStorage.getItem('apify_api_key');
         }
         
-        console.log('🔑 API key que se va a usar:', { 
-          fromTemp: !!tempApiKey, 
-          fromStorage: !!localStorage.getItem('apify_api_key'),
-          final: !!apiKeyToUse,
-          length: apiKeyToUse?.length 
-        });
-        
         try {
           const apifyResult = await scrapeWithApify(
             url, 
-            { apiKey: apiKeyToUse || '' }, // Asegurar que no sea null
+            { apiKey: apiKeyToUse || '' },
             (progress, step) => {
-              console.log(`📊 Apify - Progreso: ${progress}% - ${step}`);
               setProgress(progress);
               setCurrentStep(step);
             }
@@ -133,10 +123,8 @@ export const AirbnbScraper = () => {
           };
         } catch (apifyError) {
           const errorMessage = apifyError instanceof Error ? apifyError.message : 'Error desconocido';
-          console.error('❌ Error específico de Apify:', errorMessage);
           
           if (errorMessage.includes('NO_VALID_API_KEY')) {
-            console.log('🔄 No hay API key válida, mostrando fallback...');
             setIsLoading(false);
             setShowApifyKeyFallback(true);
             return;
@@ -146,19 +134,17 @@ export const AirbnbScraper = () => {
         }
         
       } else if (method === 'vrbo') {
-        // Usar sistema VRBO
-        setCurrentStep('Iniciando scraping de VRBO...');
+        // Usar sistema VRBO simplificado
+        setCurrentStep('Iniciando extracción VRBO...');
         scrapingResult = await scrapeVrboListing(url, (progress, step) => {
-          console.log(`📊 Sistema VRBO - Progreso: ${progress}% - ${step}`);
           setProgress(progress);
           setCurrentStep(step);
         });
         
       } else {
-        // Usar sistema interno de Airbnb (experimental)
-        setCurrentStep('Iniciando scraping interno...');
+        // Sistema interno simplificado (principalmente simulado)
+        setCurrentStep('Sistema interno (datos simulados)...');
         scrapingResult = await scrapeAirbnbListing(url, (progress, step) => {
-          console.log(`📊 Sistema interno - Progreso: ${progress}% - ${step}`);
           setProgress(progress);
           setCurrentStep(step);
         });
@@ -168,12 +154,11 @@ export const AirbnbScraper = () => {
         throw new Error('Falló la extracción');
       }
 
-      // Solo traducir si no son datos simulados (que ya están en inglés)
+      // Solo traducir si no son datos simulados
       let finalData = scrapingResult.data;
       if (method !== 'simulated') {
         setProgress(95);
         setCurrentStep('Traduciendo al inglés...');
-        console.log('🌐 Traduciendo datos al inglés...');
         finalData = await translateListingData(scrapingResult.data);
       }
 
@@ -181,57 +166,35 @@ export const AirbnbScraper = () => {
       setCurrentStep(
         method === 'simulated' ? '¡Datos simulados generados!' :
         method === 'apify' ? '¡Datos reales extraídos con Apify!' : 
-        method === 'vrbo' ? (scrapingResult.isSimulated ? '¡Datos simulados generados!' : '¡Extracción de VRBO completada!') :
-        (scrapingResult.isSimulated ? '¡Datos simulados generados!' : '¡Extracción real completada!')
+        method === 'vrbo' ? (scrapingResult.isSimulated ? '¡Datos simulados!' : '¡Extracción VRBO completada!') :
+        (scrapingResult.isSimulated ? '¡Datos simulados!' : '¡Extracción completada!')
       );
       
       setScrapingData(finalData);
       setIsSimulated(method === 'simulated' || scrapingResult.isSimulated || false);
       setExtractionMethod(scrapingResult.method || method);
       
-      console.log('✅ Proceso completado:', {
-        title: finalData.title,
-        images: finalData.images.length,
-        amenities: finalData.amenities.length,
-        price: finalData.price,
-        method: scrapingResult.method || method,
-        isSimulated: method === 'simulated' || scrapingResult.isSimulated,
-        cost: scrapingResult.cost
-      });
-      
+      // Toasts simplificados
       if (method === 'simulated') {
         toast({
-          title: "🎭 Datos Simulados Generados",
-          description: "Datos de demostración creados exitosamente para probar la funcionalidad.",
+          title: "🎭 Datos Simulados",
+          description: "Datos de demostración generados exitosamente.",
         });
       } else if (method === 'apify') {
         toast({
-          title: "✅ ¡Datos Reales Extraídos con Apify!",
-          description: `Extracción exitosa. Créditos usados: ${scrapingResult.cost || 'N/A'}`,
+          title: "✅ Datos Reales con Apify",
+          description: `Extracción exitosa. Créditos: ${scrapingResult.cost || 'N/A'}`,
         });
-      } else if (method === 'vrbo') {
-        if (scrapingResult.isSimulated) {
-          toast({
-            title: "⚠️ Datos Simulados Generados",
-            description: "VRBO bloquea la extracción automática. Se generaron datos de demostración.",
-            variant: "destructive",
-          });
-        } else {
-          toast({
-            title: "✅ ¡Datos Reales de VRBO Extraídos!",
-            description: `Extracción exitosa usando: ${scrapingResult.method}`,
-          });
-        }
       } else if (scrapingResult.isSimulated) {
         toast({
-          title: "⚠️ Datos Simulados Generados",
-          description: "Airbnb bloquea la extracción automática. Se generaron datos de demostración. Usa Apify para datos reales.",
+          title: "⚠️ Datos Simulados",
+          description: "Scraping bloqueado. Usa Apify para datos reales.",
           variant: "destructive",
         });
       } else {
         toast({
-          title: "✅ ¡Datos Reales Extraídos!",
-          description: `Extracción exitosa usando: ${scrapingResult.method}`,
+          title: "✅ Datos Reales",
+          description: `Extracción exitosa: ${scrapingResult.method}`,
         });
       }
 
@@ -242,31 +205,11 @@ export const AirbnbScraper = () => {
       
       const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
       
-      if (method === 'apify') {
-        toast({
-          title: "❌ Error en Apify",
-          description: `Error al extraer con Apify: ${errorMessage}`,
-          variant: "destructive",
-        });
-      } else if (method === 'simulated') {
-        toast({
-          title: "❌ Error en Generación",
-          description: `Error al generar datos simulados: ${errorMessage}`,
-          variant: "destructive",
-        });
-      } else if (method === 'vrbo') {
-        toast({
-          title: "❌ Extracción VRBO Bloqueada",
-          description: "VRBO bloquea todas las extracciones automáticas. Se muestran datos simulados para pruebas.",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "❌ Extracción Bloqueada",
-          description: "Airbnb bloquea todas las extracciones automáticas. Usa Apify para datos reales o datos simulados para pruebas.",
-          variant: "destructive",
-        });
-      }
+      toast({
+        title: `❌ Error en ${method}`,
+        description: errorMessage,
+        variant: "destructive",
+      });
       
       if (method === 'internal' || method === 'vrbo') {
         setShowManualEntry(true);
@@ -320,15 +263,15 @@ export const AirbnbScraper = () => {
 
   return (
     <div className="space-y-6">
-      {/* Información de métodos */}
+      {/* Información simplificada */}
       <Alert className="border-blue-200 bg-blue-50">
         <Info className="h-4 w-4 text-blue-600" />
         <AlertDescription className="text-blue-800">
-          <strong>💡 4 Métodos Disponibles:</strong> 
-          <br />• <strong>Datos Simulados:</strong> Genera datos de demostración instantáneos
-          <br />• <strong>Scraping Interno (Airbnb):</strong> Intenta extraer datos reales (puede fallar)
-          <br />• <strong>Apify Premium:</strong> Garantiza datos reales de Airbnb con proxies profesionales
-          <br />• <strong>Sistema VRBO:</strong> Extrae datos de propiedades VRBO/HomeAway
+          <strong>🎯 Sistema Simplificado:</strong> 
+          <br />• <strong>Datos Simulados:</strong> Instantáneos para demos
+          <br />• <strong>Apify Premium:</strong> Datos reales garantizados
+          <br />• <strong>Entrada Manual:</strong> Para datos específicos
+          <br />• <strong>Sistema VRBO:</strong> Para propiedades VRBO
         </AlertDescription>
       </Alert>
 
